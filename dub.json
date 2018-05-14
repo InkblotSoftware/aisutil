@@ -1,0 +1,57 @@
+{
+    "name": "aisutil",
+    "authors": [
+        "James Thompson (Inkblot Software)"
+    ],
+    "description": "AIS data processing utilities",
+    "copyright": "Copyright © 2017-2018 Inkblot Software Limited",
+    "license": "MPLv2.0",
+
+    "stringImportPaths": ["src/aisutil"],
+    
+    "lflags-windows": ["/NODEFAULTLIB:library", 
+                       "/VERBOSE:LIB",
+                       "/LIBPATH:win_libs",
+                       "/LIBPATH:libaiswrap/win_build/Release",
+                       "/LIBPATH:libaiswrap/win_build/libais/src/libais/Release"],
+
+    "lflags-linux": ["libaiswrap/lin_build/liblibaiswrap.a",
+                     "libaiswrap/lin_build/libais/src/libais/libais.a"],
+
+    "libs-linux": ["sodium", "aisnmea", "czmq", "zmq", "stdc++"],
+
+    "libs-windows": ["libaiswrap",
+                     "ais",
+
+                     "libaisnmea",
+                     "libczmq",
+                     "libzmq",
+
+                     "Iphlpapi",
+                     "Rpcrt4",
+                     "advapi32",
+                     "ws2_32",
+
+                     "msvcrt",
+                     "libcpmt"],
+
+    "configurations": [
+        {
+            "name": "aisutil",
+            "targetName": "aisutil",
+            "targetType": "executable",
+            "targetPath": "bin/",
+            "mainSourceFile": "app_src/aisutil_gui.d",
+	    "dependencies": {
+		"dlangui": "~>0.9.173"
+	    }
+        },
+        {
+            "name": "aisnmea_to_ndjson",
+            "targetName": "aisnmea_to_ndjson",
+            "targetType": "executable",
+            "targetPath": "bin/",
+            "mainSourceFile": "app_src/aisnmea_to_ndjson.d"
+        }
+    ]
+}

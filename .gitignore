@@ -1,0 +1,26 @@
+.dub
+docs.json
+__dummy.html
+*.o
+*.obj
+*~
+
+
+##  --------------------------------------------------------------------------
+##  DUB builds
+
+/bin/
+
+
+##  --------------------------------------------------------------------------
+##  Libaiswrap builds
+
+/libaiswrap/win_build/
+/libaiswrap/lin_build/
+
+
+##  --------------------------------------------------------------------------
+##  Testing
+
+/test/endtoend/decode_output/
+/test/endtoend/sot/raw_data.nmea.ndjson

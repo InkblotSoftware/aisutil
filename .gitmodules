@@ -1,0 +1,3 @@
+[submodule "libaiswrap/libaiswrap/libais"]
+	path = libaiswrap/libaiswrap/libais
+	url = https://github.com/schwehr/libais.git
