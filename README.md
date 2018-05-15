@@ -307,7 +307,7 @@ text to *OUTPUT.txt*, the program also generates:
   of the key static vessel data fields.
 - *OUTPUT_GEOMAP.png* - a world map showing all the positions where
   positional data was broadcast from, and passed the filters.
-  Projection is equirectangular, resolution is 1 degree.
+  Projection is equirectangular, resolution is 3 pixels per degree.
 
 
 Data filtering and file segregation
