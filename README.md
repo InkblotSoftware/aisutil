@@ -27,7 +27,8 @@ Getting the software
 ====================
 
 For Windows you can download the main graphical tool from our
-**releases page**. Just unzip the archive and run the program inside.
+[releases page](https://github.com/InkblotSoftware/aisutil/releases).
+Just download the binary and double click to run.
 
 Under Linux you'll currently need to build from source, so read
 **Building under Linux** below. Basically you install the dependencies
