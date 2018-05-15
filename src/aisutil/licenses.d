@@ -32,8 +32,10 @@ immutable string allLicenses =
 //  --------------------------------------------------------------------------
 //  Project
 
-immutable string projLicense = "Copyright (c) 2017-2018 Inkblot Software Limited"
-                               ~ "\n\n" ~ mplv20License;
+immutable string projLicense = "Copyright (c) 2017-2018 Inkblot Software Limited\n"
+                               ~ "\n"
+                               ~ "www.inkblotsoftware.com\n"
+                               ~ "\n" ~ mplv20License;
 
 
 //  --------------------------------------------------------------------------
