@@ -76,30 +76,37 @@ string textSummary (in ref DecProcFinStats stats) {
     import std.string;
     string res;
 
-    res ~= "PROCESSED INPUT FILES:\n";
+    res ~= "Completed run summary\n"
+        ~  "=====================";
+    
+    res ~= "\n\n"
+        ~  "Input files:\n";
     foreach (f; stats.procDef.inputFiles)
         res ~= format(" - %s\n", f);
 
     res ~= "\n\n"
-        ~ "OUTPUT FORMAT:\n"
-        ~ format(" -> %s\n", stats.procDef.messageOutputFormat);
+        ~ "Output format:\n"
+        ~ format(" - %s\n", stats.procDef.messageOutputFormat);
 
     res ~= "\n\n"
-        ~ "FILTERING:\n"
+        ~ "Message filtering:\n"
         ~ format(" - simplified shiptype: %s\n", stats.procDef.filtSimShipType)
         ~ format(" - ship length category: %s\n", stats.procDef.filtShipLenCat)
-        ~ format(" - geo bounds: %s\n", stats.procDef.geoBounds);
+        ~ format(" - geo bounds: lat (%s to %s), lon (%s to %s)\n",
+                 stats.procDef.geoBounds.minLat, stats.procDef.geoBounds.maxLat,
+                 stats.procDef.geoBounds.minLon, stats.procDef.geoBounds.maxLon);
 
     res ~= "\n\n"
-        ~ "MESSAGE FILE OUTPUT SEGMENTATION:\n"
-        ~ format(" -> %s\n", stats.procDef.msgOutSegment);
+        ~ "Message file output segregation:\n"
+        ~ format(" - %s\n", stats.procDef.msgOutSegment);
     
     res ~= "\n\n"
-        ~ "RUN STATS:\n"
+        ~ "Run stats:\n"
         ~ format(" - total input bytes: %d\n", stats.inputBytes)
         ~ format(" - num input lines: %d\n", stats.inputLines)
         ~ format(" - num parsed AIS msgs: %d\n", stats.parsedMsgs)
-        ~ format(" - num AIS msgs written after filters: %d\n", stats.parsedMsgsWritten)
+        ~ format(" - num AIS msgs written after filters: %d\n",
+                 stats.parsedMsgsWritten)
         ~ format(" - run time secs: %d\n", stats.runTimeSecs);
 
     return res;
