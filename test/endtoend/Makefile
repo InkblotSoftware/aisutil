@@ -33,6 +33,7 @@ run-tests: sot/$(SRCAIS).ndjson decode_output/MESSAGES.ndjson
 ##  'Source of truth' decoding
 
 sot/$(SRCAIS).ndjson: ../sot_decode_nmea.py $(SRCAIS)
+	@[[ -d $(dir $@) ]] || mkdir -p $(dir $@)
 	time           \
 	cat $(SRCAIS)  \
 	| python2 $<   \
@@ -43,6 +44,7 @@ sot/$(SRCAIS).ndjson: ../sot_decode_nmea.py $(SRCAIS)
 ##  Actual program output generation (we test this against the sot)
 
 decode_output/MESSAGES.ndjson: $(DECODEPROG) $(SRCAIS)
+	@[[ -d $(dir $@) ]] || mkdir -p $(dir $@)
 	cd $(dir $@) &&  \
 	time ../$(DECODEPROG) MESSAGES.txt < ../$(SRCAIS)
 
