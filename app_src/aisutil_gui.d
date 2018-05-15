@@ -1,3 +1,11 @@
+//  ==========================================================================
+//  Copyright (c) 2017-2018 Inkblot Software Limited
+//
+//  This Source Code Form is subject to the terms of the Mozilla Public
+//  License, v. 2.0. If a copy of the MPL was not distributed with this
+//  file, You can obtain one at http://mozilla.org/MPL/2.0/.
+//  ==========================================================================
+
 import std.stdio, std.exception, std.algorithm, std.range, std.typecons;
 import aisutil.decodeprocess, aisutil.decodeprocessdef, aisutil.decprocfinstats,
        aisutil.filewriting, aisutil.geo;

@@ -1,3 +1,11 @@
+//  ==========================================================================
+//  Copyright (c) 2017-2018 Inkblot Software Limited
+//
+//  This Source Code Form is subject to the terms of the Mozilla Public
+//  License, v. 2.0. If a copy of the MPL was not distributed with this
+//  file, You can obtain one at http://mozilla.org/MPL/2.0/.
+//  ==========================================================================
+
 // Carries out a basic decode to a single NDJSON file output.
 // Run summary is written to stdout as well as RUN_STATS.txt.
 
