@@ -88,9 +88,14 @@ immutable string layoutText = q{
 
 extern (C) int UIAppMain(string[] args) {
     // dlangui logger
-    version (posix)
-        Log.setStderrLogger();  // so we only see stderr logs on posix, as seems to crash on windows
-    Log.setLogLevel(LogLevel.Debug);
+    version (posix) {
+        // so we only see stderr logs on posix, as seems to crash on windows
+        Log.setStderrLogger();
+    }
+    debug {
+        // Only make a log file if we're in a debug build
+        Log.setLogLevel(LogLevel.Debug);
+    }
 
     // Initialise this thread's mailbox
     import std.concurrency;
