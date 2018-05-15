@@ -15,6 +15,13 @@ mixin APP_ENTRY_POINT;
 
 
 //  ==========================================================================
+//  Load assets from disk
+//  ==========================================================================
+
+immutable string readmeText = import ("README.md");
+
+
+//  ==========================================================================
 //  == DML window contents layout
 //  ==========================================================================
 
@@ -215,15 +222,13 @@ class App {
         _menu = _mainWidget .childById!MainMenu ("WindowMenu");
         assert (_menu);
         auto helpMenu = new MenuItem(new Action(1, "Help"d));
+        helpMenu.add (new Action (1002, "Documentation"d));
         helpMenu.add (new Action (1001, "Copyright and licenses"d));
-        // TODO add this
-        // helpMenu.add (new Action (1002, "Documentation"d));
         helpMenu.menuItemClick = delegate (MenuItem item) {
             if (item.id == 1001)
                 showDialog_copyrightAndLicenses();
-            // TODO add this
-            // else if (item.id == 1002)
-            //     showDialog_documentation();
+            else if (item.id == 1002)
+                showDialog_documentation();
             else
                 assert (0);
             return true;
@@ -250,11 +255,17 @@ class App {
                           UIString.fromRaw (allLicenses));
         dlg.show();
     }
-    // TODO add this
-    // private void showDialog_documentation () {
-    //     // TODO
-    //     assert (0);
-    // }
+    private void showDialog_documentation () {
+        auto text = "Latest documentation can be found at:\n" ~
+                    "http://github.com/InkblotSoftware/aisutil\n" ~
+                    "\n\n" ~
+                    readmeText;
+        auto dlg = new ScrollingMessageBox
+                         (_window,
+                          UIString.fromRaw("Documentation"),
+                          UIString.fromRaw(text));
+        dlg.show ();
+    }
 
     // -- Event handlers
 

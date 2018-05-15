@@ -7,7 +7,7 @@
     "copyright": "Copyright © 2017-2018 Inkblot Software Limited",
     "license": "MPLv2.0",
 
-    "stringImportPaths": ["src/aisutil"],
+    "stringImportPaths": ["src/aisutil", "./"],
     
     "lflags-windows": ["/NODEFAULTLIB:library", 
                        "/VERBOSE:LIB",
