@@ -15,15 +15,6 @@ import aisutil.dlibaiswrap, aisutil.ais;
 
 
 //  --------------------------------------------------------------------------
-//  What we actually store
-
-struct AnyAisMsgPossTS {
-    AnyAisMsg msg;
-    Nullable!int possTS;
-}
-                       
-
-//  --------------------------------------------------------------------------
 //  The backlog struct itself
 
 struct MmsiBacklog {

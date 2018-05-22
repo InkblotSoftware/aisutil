@@ -7,7 +7,8 @@
 //  ==========================================================================
 
 module aisutil.decprocfinstats;
-import aisutil.decodeprocessdef;
+import aisutil.decodeprocessdef, aisutil.filereading;
+import std.range, std.algorithm;
 
 
 //  ==========================================================================
@@ -31,30 +32,29 @@ struct DecProcFinStats {
 
 
 //  --------------------------------------------------------------------------
-//  Builder object, which takes a stream of notifications of lines read, lines
-//  parsed successfully and messages written (i.e. passed filters) and tracks
-//  the stats, allowing you to build to a DecProcFinStats at the end.
+//  Builder object, which collects info during the run process, tracks the
+//  stats, and gives you a DecProcFinStats object when you call build()
+//  at the end.
+//  Initialise with the same ais file reader set you're decoding messages from.
 
 struct DecProcFinStats_Builder {
     import std.datetime;
     private int _startTime;
     private DecProcFinStats _finStats;
-
+    private const(AisFileReader)[] _readers;
+    
     @disable this(this);
-    this(DecodeProcessDef procDef) {
+    // TODO add template constraint to this, so T must implement AisFileReader
+    this(T)(DecodeProcessDef procDef, const(T)[] readers) {
         _finStats.procDef = procDef;
+        _readers = readers.map!(r => cast(AisFileReader) r).array;
         _startTime = cast(int) Clock.currTime().toUnixTime();
     }
 
-    // Call this every time you read an input line
-    import std.traits;
-    void notifyInputLine(T) (in T line) if(isSomeString!T) {
-        ++_finStats.inputLines;
-        _finStats.inputBytes += line.length + 1;  // TODO +2 if \r
+    // Get the total number of bytes read from input files so far
+    long bytesRead () const {
+        return _readers.map !(r => r.bytesRead).sum;
     }
-
-    // Call this when you parse a message successfully
-    void notifyParsedMsg () {++_finStats.parsedMsgs;}
 
     // Call this when a message passes all the filters and we write it out
     // (you should also have called notifyParsedMsg() on it before this)
@@ -63,6 +63,11 @@ struct DecProcFinStats_Builder {
     DecProcFinStats build () {
         auto endTime = cast(int) Clock.currTime().toUnixTime();
         _finStats.runTimeSecs = endTime - _startTime;
+
+        _finStats.inputLines = _readers.map!(r => r.linesRead).sum;
+        _finStats.inputBytes = bytesRead ();
+        _finStats.parsedMsgs = _readers.map!(r => r.aisMsgsRead).sum;
+        
         return _finStats;
     }
 }

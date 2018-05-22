@@ -36,3 +36,54 @@ int mmsi (in ref AnyAisMsg msg) {
                       (in ref AisMsg24    m) => m.mmsi,
                       (in ref AisMsg27    m) => m.mmsi)();
 }
+
+
+//  --------------------------------------------------------------------------
+//  Version holding a possible-timestamp too
+
+import std.typecons;
+
+struct AnyAisMsgPossTS {
+    AnyAisMsg msg;
+    Nullable!int possTS;
+
+    int mmsi () const {
+        return msg.mmsi;
+    }
+}
+
+
+//  --------------------------------------------------------------------------
+//  Parser for AnyAisMsg (if you want it)
+
+class UnparseableMessageTypeException : Exception {
+    // TODO better member vars etc
+    import std.conv;
+    this (int msgType) {super (to!string(msgType));}
+}
+
+AnyAisMsg parseAnyAisMsg (int msgType, const(char)[] payload, size_t fillbits) {
+    import aisutil.dlibaiswrap;
+    
+    if (msgType == 1 || msgType == 2 || msgType == 3) {
+        return AnyAisMsg (AisMsg1n2n3 (payload, fillbits));
+    } else
+    if (msgType == 5) {
+        return AnyAisMsg (AisMsg5 (payload, fillbits));
+    } else
+    if (msgType == 18) {
+        return AnyAisMsg (AisMsg18 (payload, fillbits));
+    } else
+    if (msgType == 19) {
+        return AnyAisMsg (AisMsg19 (payload, fillbits));
+    } else
+    if (msgType == 24) {
+        return AnyAisMsg (AisMsg24 (payload, fillbits));
+    } else
+    if (msgType == 27) {
+        return AnyAisMsg (AisMsg27 (payload, fillbits));
+    } else {
+        // TODO better exception
+        throw new UnparseableMessageTypeException (msgType);
+    }
+}

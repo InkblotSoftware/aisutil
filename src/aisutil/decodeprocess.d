@@ -13,7 +13,7 @@ import aisutil.filewriting, aisutil.mmsistats, aisutil.ais,
        aisutil.decodeprocessdef, aisutil.geo, aisutil.decprocfinstats,
        aisutil.geoheatmap, aisutil.dlibaiswrap, aisutil.simpleshiptypes,
        aisutil.shiplengths, aisutil.daisnmea, aisutil.backlog, 
-       aisutil.aisnmeagrouping;
+       aisutil.aisnmeagrouping, aisutil.filereading;
 
 
 //  ==========================================================================
@@ -295,20 +295,15 @@ private struct OutputPaths {
 
 //  --------------------------------------------------------------------------
 //  The process itself: top level runner
-//    TODO simplify by moving to be a processing chain for AnyAisMsg ranges.
 //
-//    This function is currently difficult to read the first time, but not
-//    too awful when you understand the structure. We're going to move to
-//    a range-based solution asap to simplify it.
-//    
-//    The core work happens in stages 0,1,2,3 in the middle (you read them
-//    from the bottom); messages get read and decoded, then passed to a
-//    succession of higher and higher level handling functions which finally
-//    write out the messages through the selected FileWriter's.
-//
-//    We set up the services used in executeDecodeProcess() at the top, before
-//    any of these stages are reached, and write out the non-message summary
-//    files at the botton once they're finished.
+//    Since we can often only write messages when the static data store for
+//    their MMSI has sufficient data to judge where to put the message and
+//    whether we want it, we use a 'backlog' to store messages we can't yet
+//    process, and check this each time we update the static data for an MMSI.
+//  
+//    TODO consider simplifying by further rangeifying.
+//    (There's a tradeoff here with over abstraction, it's not completely
+//    clear where the line is.)
 
 // Callback to know process progress
 alias NotifyCB = void delegate (DecodeProcessCurRunningStats);
@@ -320,20 +315,16 @@ DecProcFinStats executeDecodeProcess (DecodeProcessDef procDef) {
 
 DecProcFinStats executeDecodeProcess (DecodeProcessDef procDef,
                                       NotifyCB notifyCB) {
-    // -- Set up state to handle input lines
-    
-    // Used by all process variants
+    // --- Set up state to handle input lines
+
+    // General utils
     auto outPaths     = OutputPaths (procDef);
     auto mmsiFilters  = MmsiFilterSet (procDef);
-    auto statsBuilder = DecProcFinStats_Builder (procDef);
-    //auto geoHeatmap   = new MsgGeoHeatmap (procDef);
     auto geoHeatmap   = new GeoHeatmap ();
     auto mmsiStats    = MmsiStatsBucket ();
     auto backlog      = MmsiBacklog ();
-    auto grouper      = AisGrouper_BareNmea();
-    auto nmea         = AisNmeaParser.make();
-    ulong bytesProcessed;               // how many bytes have we read?
-    ulong bytesProcessed_lastNotified;  // what did we last call notifyCB with?
+    immutable totalBytesInInput = procDef.totalBytesInInput();
+    
     // Choose the variant-specific message file writer
     Unique!MsgFileWriter msgWriter = delegate MsgFileWriter (){
         final switch (procDef.msgOutSegment) with (MessageOutputSegmentation) {
@@ -354,183 +345,126 @@ DecProcFinStats executeDecodeProcess (DecodeProcessDef procDef,
                     (outPaths.messages.byTsDayStem(), procDef.messageOutputFormat);
         } }();
 
-    // -- Stage 3 (last): handling parsed messages
+    // AIS message file readers, and the messages they contain
+    auto readers = procDef.inputFiles
+                       .map!(p => new AisNmeaFileReader(p))
+                       .array;
+    static assert (is( ElementType!(typeof(readers[0])) ==
+                       AnyAisMsgPossTS ));
+    auto allInputMsgs = joiner (readers);
+    static assert (is( typeof(allInputMsgs.front) == AnyAisMsgPossTS ));
 
-    // We've parsed an ais message, so write it or stash it
-    void handleMessage(T) (T msg, Nullable!int possTS) if(isAisMsg!T) {
-        statsBuilder.notifyParsedMsg ();
-        bool statsChanged = mmsiStats.updateMissing (msg);
+    // Collects run stats, to save at end
+    auto statsBuilder = DecProcFinStats_Builder (procDef, readers);
+
+    
+    // --- Try to handle all input messages, potentially leaving a backlog
+
+    int numMsgsSinceLastNotifyCB;  // we notify caller every 1,000 messages
+
+    // All msg->file writing goes through these
+    auto emitMessage_h = delegate void (AnyAisMsgPossTS msg,
+                                      Nullable!MmsiStats stats) {
+        geoHeatmap.markLatLon_ifPositional (msg.msg);
+        statsBuilder.notifyParsedMsgWritten ();
+        if (stats.isNull)
+            msgWriter.writeAnyAisMsg_noStats (msg.msg, msg.possTS);
+        else
+            msgWriter.writeAnyAisMsg (msg.msg, msg.possTS, stats);
+    };
+    auto emitMessage_noStats = delegate void (AnyAisMsgPossTS msg) {
+        emitMessage_h (msg, Nullable!MmsiStats.init);
+    };
+    auto emitMessage_withStats = delegate void (AnyAisMsgPossTS msg,
+                                                MmsiStats stats) {
+        emitMessage_h (msg, Nullable!MmsiStats(stats));
+    };
+
+    // Run through all (decoded) messages in the input files
+    foreach (msg; allInputMsgs) {
+        // Periodic update notification to caller
+        if (numMsgsSinceLastNotifyCB > 1_000) {
+            notifyCB (DecodeProcessCurRunningStats (statsBuilder.bytesRead,
+                                                    totalBytesInInput));
+            numMsgsSinceLastNotifyCB = 0;
+        }
+        ++numMsgsSinceLastNotifyCB;
+
+        // Update MMSI static data cache, and get latest
+        bool statsChanged = mmsiStats.updateMissing (msg.msg);
         auto stats = mmsiStats [msg.mmsi];
-        
-        // 1. POSS BACKLOG FLUSH: if we now have new stats for this mmsi that
-        //    let us flush its backlog, do so. Otherise pass.
+
+        // 1. This message may have given us new static data for its MMSI.
+        //    If so, can we now flush any backlog messages for that MMSI?
         if (   statsChanged
             && backlog.contains (msg.mmsi)
             && msgWriter.canWriteWithStats (stats)
             && mmsiFilters.canJudge (stats))
         {
+            // Yes
             if (mmsiFilters.shouldWrite (stats)) {
+                // Filters judge we want the MMSI's msgs, so write...
                 AnyAisMsgPossTS[] blGroup = backlog.popMmsi (msg.mmsi);
                 foreach (mTS; blGroup) {
                     if (procDef.geoBounds.containsOrIsNotPositional (mTS.msg)) {
-                        geoHeatmap.markLatLon_ifPositional (mTS.msg);
-                        statsBuilder.notifyParsedMsgWritten ();
-                        msgWriter.writeAnyAisMsg (mTS.msg, mTS.possTS, stats);
+                        // But only those msgs in geo bounds
+                        emitMessage_withStats (mTS, stats);
                     }
                 }
             } else {
-                // Discard mmsi's backlog msgs if filtered out
+                // Filters judge we don't want the MMSI's msgs, so discard
+                backlog.popMmsi (msg.mmsi);
             }
         }
 
-        // 2. WRITE MESSAGE, or push to backlog if filters/writer needs more info
-        //    to decide whether it's worth writing or where to write it
+        // 2. Handle the current (this loop) message.
+        //    If we can make a decision on whether to write this MMSI's msgs now,
+        //    do so, or otherwise push it to the backlog
         if (   msgWriter.canWriteWithStats (stats)
             && mmsiFilters.canJudge (stats))
         {
-            // We have enough data to make the call...
+            // Yes, can make decision now
             if (   mmsiFilters.shouldWrite (stats)
-                && procDef.geoBounds.containsOrIsNotPositional (msg))
+                && procDef.geoBounds.containsOrIsNotPositional (msg.msg))
             {
-                geoHeatmap.markLatLon_ifPositional (msg);
-                msgWriter.writeMsg (msg, possTS, stats);
-                statsBuilder.notifyParsedMsgWritten ();
+                emitMessage_withStats (msg, stats);
             } else {
-                // Discard as call was 'no'
+                // Unwanted, discard
             }
         } else {
-            // We don't have enough data yet to make the call
-            backlog.push (msg, possTS);
+            // No, we need more data for this MMSI, so push to backlog
+            backlog.push (msg.msg, msg.possTS);
         }
-    }
-    // Called while emptying the backlog - we're more brutal here
-    void handleAnyAisMessage_duringFinalBacklogFlush (in ref AnyAisMsg msg,
-                                                      Nullable!int possTS) {
-        auto stats = mmsiStats [msg.mmsi];
-        if (// We require that the filters can make a judgement on the stats
-               mmsiFilters.canJudge (stats)
-            && mmsiFilters.shouldWrite (stats)
-            && procDef.geoBounds.containsOrIsNotPositional (msg))
+    } // foreach (msg; allInputMsgs)
+
+    
+    // --- All input msgs now read, so flush the backlog
+    
+    foreach (mmsi; backlog.mmsis()) {
+        AnyAisMsgPossTS[] messages = backlog.popMmsi (mmsi);
+        auto stats = mmsiStats [mmsi];
+        
+        // We require that the filters can make a judgement on each MMSI's stats
+        // before we force-write messages from it, but not the file writer
+        if (   mmsiFilters.canJudge (stats)
+            && mmsiFilters.shouldWrite (stats))
         {
-            geoHeatmap.markLatLon_ifPositional (msg);
-            statsBuilder.notifyParsedMsgWritten ();
-            if (msgWriter.canWriteWithStats (stats))
-                msgWriter.writeAnyAisMsg (msg, possTS, stats);
-            else
-                msgWriter.writeAnyAisMsg_noStats (msg, possTS);
-        } else {
-            // Discard if filtered out
-        }
-    }
-
-    // -- Stage 2: parsing NMEA messages' data into AIS messages
-    
-    // Finished group / singlepart; we've extracted message data
-    void handleCompleteNmeaData (int msgType, in string payload, size_t fillbits,
-                                 Nullable!int possTS) {
-        if (msgType == 1 || msgType == 2 || msgType == 3) {
-            auto msg = AisMsg1n2n3 (payload, fillbits);
-            handleMessage (msg, possTS);
-        } else
-        if (msgType == 5) {
-            auto msg = AisMsg5 (payload, fillbits);
-            handleMessage (msg, possTS);
-        } else
-        if (msgType == 18) {
-            auto msg = AisMsg18 (payload, fillbits);
-            handleMessage (msg, possTS);
-        } else
-        if (msgType == 19) {
-            auto msg = AisMsg19 (payload, fillbits);
-            handleMessage (msg, possTS);
-        } else
-        if (msgType == 24) {
-            auto msg = AisMsg24 (payload, fillbits);
-            handleMessage (msg, possTS);
-        } else
-        if (msgType == 27) {
-            auto msg = AisMsg27 (payload, fillbits);
-            handleMessage (msg, possTS);
-        }
-        else {
-            // pass
-        }
-    }
-
-    // -- Stage 1: get to-parse-as-ais data out of nmea lines / line groups
-    
-    // Called on each NMEA singlepart by handleLineNmea()
-    void handleCompleteNmea (AisNmeaParser nmea) {
-        Nullable!int possTS;
-        if (nmea.has_tagblockval("c"))
-            possTS = to!int(nmea.tagblockval("c"));
-        
-        handleCompleteNmeaData (nmea.aismsgtype, nmea.payload.idup,
-                                nmea.fillbits, possTS);
-    }
-    // Called on each complete NMEA group by handleLineNmea()
-    void handleCompleteNmea_gr (AisNmeaParser[] group) {
-        string payload;
-        foreach (nm; group)
-            payload ~= nm.payload;
-        auto fillbits = group[$-1].fillbits;
-        auto msgType = group[0].aismsgtype;
-        
-        Nullable!int possTS;
-        if (group[0].has_tagblockval("c"))
-            possTS = to!int(group[0].tagblockval("c"));
-
-        handleCompleteNmeaData (msgType, payload, fillbits, possTS);
-    }
-    // First step; run on each parsed NMEA line
-    void handleLineNmea (AisNmeaParser nmea) {
-        if (nmea.isSinglepart) {
-            handleCompleteNmea (nmea);
-        } else {
-            assert (nmea.isMultipart);
-            bool groupIsDone = grouper.pushMsg (nmea);
-            if (groupIsDone) {
-                auto group = grouper.popGroup (nmea);
-                handleCompleteNmea_gr (group);
-            }
-        }
-    }
-
-    // -- Stage 0: the driver
-    
-    foreach (fileName; procDef.inputFiles.dup.sort()) {
-        foreach (line; File(fileName).byLine) {
-            try {
-                statsBuilder.notifyInputLine (line);
-                bytesProcessed += line.length + 1;  // TODO runtime check if \r\n and +2
-
-                if (bytesProcessed - bytesProcessed_lastNotified > 40_000) {
-                    notifyCB (DecodeProcessCurRunningStats (bytesProcessed,
-                                                            procDef.totalBytesInInput));
-                    bytesProcessed_lastNotified = bytesProcessed;
+            foreach (msg; messages) {
+                if (procDef.geoBounds.containsOrIsNotPositional(msg.msg)) {
+                    if (msgWriter.canWriteWithStats (stats))
+                        emitMessage_withStats (msg, stats);
+                    else
+                        emitMessage_noStats (msg);
                 }
-
-                bool nmeaParsedOK = nmea.tryParse (line);
-                // Ignore bad nmea lines
-                if (! nmeaParsedOK)
-                    continue;
-
-                handleLineNmea (nmea);
-            } catch (Exception e) {
-                writeln ("#### EXCEPTION THROWN: ", e, " DURING NMEA LINE: ", line);
             }
+        } else {
+            // Discard, as not judgeable or not wanted
         }
     }
 
-    // -- Finish up and return
-
-    foreach (mm; backlog.mmsis()) {
-        AnyAisMsgPossTS[] group = backlog.popMmsi (mm);
-        foreach (aamts; group)
-            handleAnyAisMessage_duringFinalBacklogFlush (aamts.msg, aamts.possTS);
-    }
-
-    // Write non-message output files and return stats
+    
+    // --- Finally write non-message output files and return stats
+    
     auto finStats = statsBuilder.build ();
     mmsiStats.writeCsvFile (outPaths.mmsis());
     File(outPaths.runStats(), "w").write (finStats.textSummary());

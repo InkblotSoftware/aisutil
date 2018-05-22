@@ -8,7 +8,7 @@
 
 module aisutil.mmsistats;
 import std.range, std.algorithm, std.exception, std.typecons, std.string, std.stdio;
-import aisutil.shiptypes, aisutil.csv;
+import aisutil.shiptypes, aisutil.csv, aisutil.ais;
 
 // Store for static data and general statistics about all MMSIs.
 // 
@@ -64,7 +64,20 @@ struct MmsiStatsBucket {
     // Update any possible missing stats from the given message.
     // Returns true iff new data was added to the bucket from it
     // (not just incrementing the message count)
-    bool updateMissing(T) (in ref T msg) {
+    bool updateMissing (in ref AnyAisMsg msg) {
+        import std.variant;
+        return msg.visit!((m => updateMissing(m)));
+    }
+    bool updateMissing(T) (in ref T msg) if(isAisMsg!T) {
+        return updateMissing_h (msg);
+    }
+    version (unittest) {
+        // So we can test with C_AisMsgXXX structs
+        bool updateMissing_force(T) (in ref T msg) {
+            return updateMissing_h (msg);
+        }
+    }
+    private bool updateMissing_h(T) (in ref T msg) {
         auto stats = _data.get (msg.mmsi, MmsiStats.withMmsi(msg.mmsi));
         immutable origStats = stats;
         ++stats.numMsgs;
@@ -170,12 +183,12 @@ unittest {
     msg1.mmsi = 111;
     msg1.shiptype = 8888;
     msg1.shipname = "my_ship_name".dup.ptr;
-    changed = bucket.updateMissing(msg1);
+    changed = bucket.updateMissing_force(msg1);
     assert (changed);
 
     auto msg2 = C_AisMsg1n2n3();
     msg2.mmsi = 222;
-    changed = bucket.updateMissing(msg2);
+    changed = bucket.updateMissing_force(msg2);
     assert (! changed);
 
     // This one's data is ignored, as msg1 already had the sn/st data
@@ -183,7 +196,7 @@ unittest {
     msg3.mmsi = 111;
     msg3.shiptype = 555555555;
     msg3.shipname = "other_ship_name".dup.ptr;
-    changed = bucket.updateMissing (msg3);
+    changed = bucket.updateMissing_force (msg3);
     assert (!changed);
 
     assert (bucket[111].numMsgs == 2);
