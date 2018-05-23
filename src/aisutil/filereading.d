@@ -116,6 +116,7 @@ class AisNmeaFileReader : AisFileReader {
     override long linesRead () const { return _nmeaLines.linesRead; }
     override long aisMsgsRead () const { return _aisMsgsRead; }
 
+    // Loop until we successfully parse a message, or run out of lines
     override void popFront () {
         assert (!empty || _justStarted);
         _justStarted = false;
