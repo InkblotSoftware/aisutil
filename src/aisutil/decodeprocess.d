@@ -346,9 +346,22 @@ DecProcFinStats executeDecodeProcess (DecodeProcessDef procDef,
         } }();
 
     // AIS message file readers, and the messages they contain
-    auto readers = procDef.inputFiles
-                       .map!(p => new AisNmeaFileReader(p))
-                       .array;
+    AisFileReader[] readers;
+    final switch (procDef.aisFileFormat) {
+        case AisFileFormat.NMEA:
+            readers = procDef.inputFiles
+                          .map!(p => cast(AisFileReader)
+                                     (new AisNmeaFileReader(p)))
+                          .array;
+            break;
+            
+        case AisFileFormat.MCA:
+            readers = procDef.inputFiles
+                          .map!(p => cast(AisFileReader)
+                                     (new McaAisFileReader(p)))
+                          .array;
+            break;
+    }
     static assert (is( ElementType!(typeof(readers[0])) ==
                        AnyAisMsgPossTS ));
     auto allInputMsgs = joiner (readers);

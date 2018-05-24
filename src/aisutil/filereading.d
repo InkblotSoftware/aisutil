@@ -21,6 +21,15 @@ import aisutil.ais, aisutil.daisnmea, aisutil.aisnmeagrouping,
 
 
 //  --------------------------------------------------------------------------
+//  What file types can we read?
+
+enum AisFileFormat {
+    NMEA,  // AIS-holding NMEA data
+    MCA,   // UK MCA format data (see mcadata.d for a spec)
+}
+
+
+//  --------------------------------------------------------------------------
 //  Main file-exposing interface - we turn files into ranges of AnyAisMsgPossTSs
 
 interface AisFileReader {

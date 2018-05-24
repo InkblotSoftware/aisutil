@@ -8,7 +8,7 @@
 
 module aisutil.decodeprocessdef;
 import std.range, std.algorithm;
-import aisutil.geo, aisutil.filewriting;
+import aisutil.geo, aisutil.filewriting, aisutil.filereading;
 
 
 //  ==========================================================================
@@ -37,6 +37,9 @@ struct DecodeProcessDef {
 
     // Does the user want NDJSON or CSV output?
     MessageOutputFormat messageOutputFormat;
+
+    // What format of input files is the user reading?
+    AisFileFormat aisFileFormat = AisFileFormat.NMEA;
 
     // How does the user want written-out messages segmented across files?
     MessageOutputSegmentation msgOutSegment;

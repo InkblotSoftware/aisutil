@@ -90,6 +90,10 @@ string textSummary (in ref DecProcFinStats stats) {
         res ~= format(" - %s\n", f);
 
     res ~= "\n\n"
+        ~ "Input format:\n"
+        ~ format(" - %s\n", stats.procDef.aisFileFormat);
+
+    res ~= "\n\n"
         ~ "Output format:\n"
         ~ format(" - %s\n", stats.procDef.messageOutputFormat);
 
