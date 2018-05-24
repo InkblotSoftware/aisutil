@@ -8,7 +8,7 @@
 
 import std.stdio, std.exception, std.algorithm, std.range, std.typecons;
 import aisutil.decodeprocess, aisutil.decodeprocessdef, aisutil.decprocfinstats,
-       aisutil.filewriting, aisutil.geo;
+       aisutil.filewriting, aisutil.geo, aisutil.filereading;
 
 import dlangui, dlangui.core.logger;
 mixin APP_ENTRY_POINT;
@@ -293,12 +293,14 @@ class App {
 
         // Input files
         try {
-            _decProcDef.inputFiles = _panels.inputFilesPanel.choice().idup;
+            _decProcDef.inputFiles = _panels.inputFilesPanel.filesChoice().idup;
         } catch (Exception e) {
             Log.d (e.msg);
             showMsg ("No input files selected");
             return;
         }
+        // Doesn't throw
+        _decProcDef.aisFileFormat = _panels.inputFilesPanel.formatChoice();
             
         // Ouptut files
         try {
@@ -589,6 +591,7 @@ class InputFilesPanel : Panel {
     Button _addBut, _clearBut;
     StringListWidget _filesListWidget;
     StringListAdapter _filesList;
+    RadioButton _nmeaFormat, _mcaFormat;
     
     this (Window window, string selfId) {
         _window = window;
@@ -598,16 +601,24 @@ class InputFilesPanel : Panel {
                                               ("Select input AIS files:")))
                            .fontWeight(800) .fontSize(14));
 
-        // Outer layout
+        // -- Row 1: file choice buttons and selected files display box
         auto hlay = new HorizontalLayout ();
         hlay.layoutWidth = FILL_PARENT;
         self.addChild (hlay);
 
-        // Left col of hlayout (we add buttons to it below)
+        // -- Row 1, Col 1: file choice buttons (added below)
         auto vhlay = new VerticalLayout ();
         hlay.addChild (vhlay);
+        
+        _addBut = new Button ("", UIString.fromRaw("Add file..."));
+        _addBut.click = &onClick_addFile;
+        vhlay.addChild (_addBut);
+        
+        _clearBut = new Button ("", UIString.fromRaw("Clear"));
+        _clearBut.click = &onClick_clearFiles;
+        vhlay.addChild (_clearBut);
 
-        // Right col of outer hlayout
+        // -- Row 1, Col 2: selected files display widget
         _filesList = new StringListAdapter ();
         _filesListWidget = new StringListWidget ();
         _filesListWidget .alignment(Align.Left | Align.Top)
@@ -617,18 +628,23 @@ class InputFilesPanel : Panel {
         _filesListWidget.ownAdapter = _filesList;
         hlay.addChild (_filesListWidget);
         
-        _addBut = new Button ("", UIString.fromRaw("Add file..."));
-        _addBut.click = &onClick_addFile;
-        vhlay.addChild (_addBut);
-        
-        _clearBut = new Button ("", UIString.fromRaw("Clear"));
-        _clearBut.click = &onClick_clearFiles;
-        vhlay.addChild (_clearBut);
+        // -- Row 2: input format radio buttons
+        auto formatRow = new HorizontalLayout ();
+        formatRow.addChild (new TextWidget ("", "File format:"d));
+        formatRow.addChild (_nmeaFormat = new RadioButton ("", "NMEA (normal)"d));
+        formatRow.addChild (_mcaFormat = new RadioButton ("", "UK MCA/MMO"d));
+        _nmeaFormat.checked = true;
+        self.addChild (formatRow);
     }
 
-    string[] choice () {
+    string[] filesChoice () {
         enforce (_files.length);
         return _files.dup(); }
+    AisFileFormat formatChoice () {
+        if (_nmeaFormat.checked) return AisFileFormat.NMEA;
+        if (_mcaFormat .checked) return AisFileFormat.MCA;
+        assert (0);
+    }
 
     override void freeze () {allElems().each!(e => e.enabled = false);}
     override void thaw ()   {allElems().each!(e => e.enabled = true);}
