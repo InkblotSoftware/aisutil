@@ -8,15 +8,15 @@
 
 module aisutil.filereading;
 
-import std.range, std.algorithm, std.stdio, std.typecons, std.conv;
+import std.range, std.algorithm, std.stdio, std.typecons, std.conv, std.traits;
 import aisutil.ais, aisutil.daisnmea, aisutil.aisnmeagrouping,
-       aisutil.dlibaiswrap;
+       aisutil.dlibaiswrap, aisutil.mcadata;
 
 
 //  ==========================================================================
 //  == Classes to read (decoded) AIS data out of files on disk, either:
 //  ==   - AIS-holding NMEA
-//  ==   - Soon: UK Maritime and Coastguard Authority files
+//  ==   - UK Maritime and Coastguard Authority files
 //  ==========================================================================
 
 
@@ -279,3 +279,114 @@ unittest {
     }    
 }
 
+
+//  --------------------------------------------------------------------------
+//  UK Maritime and Coastguard Authority AIS data file reader
+//    This is a proprietary format which adds timestamps, merges multipart
+//    messages together, adds a few pre-decoded fields, and, comically,
+//    discards the fillbits field, which we have to guess from the message
+//    type.
+
+class McaAisFileReader : AisFileReader {
+    // Null if no more messages in file to read
+    private Nullable!AnyAisMsgPossTS _curMsg;
+    // Are we yet to try reading any data
+    private bool _justStarted = true;
+    // Lines to read from input file
+    private typeof(File().byLine()) _inputLines;
+    
+    private long _bytesRead;
+    private long _linesRead;
+    private long _aisMsgsRead;
+
+    @disable this();
+    this (in string filepath) {
+        _inputLines =  File(filepath, "r").byLine();
+        popFront ();
+    }
+
+    override long bytesRead () const { return _bytesRead; }
+    override long linesRead () const { return _linesRead; }
+    override long aisMsgsRead () const { return _aisMsgsRead; }
+
+    override bool empty () const { return _curMsg.isNull; }
+    
+    override AnyAisMsgPossTS front () const {
+        assert (!empty);
+        return _curMsg.get; }
+
+    override void popFront () {
+        assert (!empty || _justStarted);
+        _justStarted = false;
+
+        // Loop until we successfully parse a message, or run out of lines
+        while (! _inputLines.empty) {
+            scope(exit) _inputLines.popFront ();
+            auto line = _inputLines.front;
+            
+            _linesRead += 1;
+            _bytesRead += (line.length + 1); // TODO +2 for windows line endings
+
+            try {
+                auto dats = McaDataLine (line);
+                auto msg = parseAnyAisMsg (dats.payloadMsgType, dats.payload,
+                                           dats.guessedFillbits);
+                _curMsg = AnyAisMsgPossTS (msg, Nullable!int(dats.timestamp));
+                ++_aisMsgsRead;
+                return;
+                
+            } catch (Exception e) {
+                stderr.writeln ("== MCA data parse failed, CONTINUING. ",
+                                "Line was: ", line, "\n", e);
+                stderr.flush;
+            }
+        }
+        _curMsg.nullify ();  // no more data to read, so give up, we're empty
+    }
+}
+
+
+//  --------------------------------------------------------------------------
+//  Tests for MCA data reader
+
+// We dump this to a temp file during unit tests
+private immutable mcaAisFileData = "
+2013-10-17 00:00:00,306033000,5,54SniJ02>6K10a<J2204l4p@622222222222221?:hD:46b`0>E3lSRCp88888888888880
+oooo
+2016-04-29 00:00:00.000,235104485,H3P=`q@ETD<5@<PE80000000000     \r
+2016-04-29 00:00:00.000,235104485,H3P=`q@ETD<5@<PE80000000000
+";
+
+unittest {
+    import std.file, std.path, std.string;
+    auto dataFile = tempDir().buildPath ("AISUTIL_UNITTEST_mcaAisFileData.data");
+    //assert (! exists(dataFile));
+    dataFile.write (mcaAisFileData);
+    scope(exit) dataFile.remove();
+
+    auto reader = new McaAisFileReader (dataFile);
+
+    // {u'destination': u'TORNIO              ', u'dim_d': 4L, u'name': u'AMANDA              ', u'eta_hour': 8L, u'ais_version': 0L, u'draught': 5.699999809265137, u'mmsi': 306033000L, u'repeat_indicator': 0L, u'dim_b': 20L, u'dim_c': 10L, u'dte': 0L, u'dim_a': 86L, u'eta_day': 21L, u'eta_minute': 0L, u'callsign': u'PJSF   ', u'spare': 0L, u'eta_month': 10L, u'type_and_cargo': 79L, u'fix_type': 1L, u'id': 5L, u'imo_num': 9312688L}
+    assert (! reader.empty);
+    assert (reader.front.msg.get!AisMsg5.shipname.fromStringz == "AMANDA");
+    assert (reader.front.msg.get!AisMsg5.mmsi == 306033000);
+
+    // {u'mmsi': 235104485L, u'repeat_indicator': 0L, u'id': 24L, u'name': u'EYECATCHER@@@@@@@@@@', u'part_num': 0L}
+    reader.popFront ();
+    assert (! reader.empty);
+    assert (reader.front.msg.get!AisMsg24.shipname.fromStringz == "EYECATCHER");
+    assert (reader.front.msg.get!AisMsg24.mmsi == 235104485);
+
+    // Same again
+    reader.popFront ();
+    assert (! reader.empty);
+    assert (reader.front.msg.get!AisMsg24.shipname.fromStringz == "EYECATCHER");
+    assert (reader.front.msg.get!AisMsg24.mmsi == 235104485);
+    
+    reader.popFront ();
+    assert (reader.empty);
+
+    assert (reader.linesRead == 5);
+    assert (reader.bytesRead == mcaAisFileData.length);
+    assert (reader.aisMsgsRead == 3);
+}
