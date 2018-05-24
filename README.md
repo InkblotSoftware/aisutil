@@ -520,6 +520,12 @@ or from source / released binaries if they're not available there:
 - [CMake](https://cmake.org/) (almost certainly in repositories)
 - clang++ or g++
 
+Then clone this repository:
+
+```sh
+git clone https://github.com/InkblotSoftware/aisutil --recursive
+```
+
 Then build the wrapper for `libais`, which is linked in by the second
 D compile stage:
 
@@ -550,7 +556,8 @@ First, install the following compilers etc.:
 - [DMD D compiler](https://dlang.org/download) (includes the DUB package manager)
 - [CMake](https://cmake.org/download/)
 
-Then clone this repository. We include the two required Windows C
+Then clone this repository recursively (since we include the libais
+project as a submodule). We include the two required Windows C
 libraries as static .obj libraries under `win_lib/`
 
 Under the libaiswrap folder, run `win_setup_cmake.bat` to create a
