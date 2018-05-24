@@ -52,6 +52,13 @@
             "targetType": "executable",
             "targetPath": "bin/",
             "mainSourceFile": "app_src/aisnmea_to_ndjson.d"
+        },
+        {
+            "name": "mcaais_to_ndjson",
+            "targetName": "mcaais_to_ndjson",
+            "targetType": "executable",
+            "targetPath": "bin/",
+            "mainSourceFile": "app_src/mcaais_to_ndjson.d"
         }
     ]
 }

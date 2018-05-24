@@ -28,10 +28,14 @@ LAW_LIB := libaiswrap/lin_build/liblibaiswrap.a
 ##  Targets
 
 all: bin/aisutil  \
-     bin/aisnmea_to_ndjson
+     bin/aisnmea_to_ndjson  \
+     bin/mcaais_to_ndjson
 
 bin/aisutil: $(D_SRC) $(LAW_LIB) app_src/aisutil_gui.d
 	dub build --config=aisutil --build=release
 
 bin/aisnmea_to_ndjson: $(D_SRC) $(LAW_LIB) app_src/aisnmea_to_ndjson.d
 	dub build --config=aisnmea_to_ndjson --build=release
+
+bin/mcaais_to_ndjson: $(D_SRC) $(LAW_LIB) app_src/mcaais_to_ndjson.d
+	dub build --config=mcaais_to_ndjson --build=release
