@@ -298,8 +298,8 @@ of the following:
 2016-04-29 00:00:00.000,235104485,H3P=`q@ETD<5@<PE80000000000
 ```
 
-You can see there's a timestamp, an optional message type (from the
-payload), an MMSI (from the payload), and the payload. Multipart
+You can see there's a timestamp, an MMSI (from the payload), an
+optional message type (from the payload), and the payload. Multipart
 messages are pre-concatenated, so there's no merging to be done, and
 one input line corresponds to one output message, assuming no decode
 errors.
@@ -308,6 +308,10 @@ If you're really interested, `source/aisutil/mcadata.d` contains a
 spec for the format we inferred from working with some data
 samples. Please do send us updates and improvements if you spot a
 mistake.
+
+Note that we don't seem to get a fillbits value, so we have to guess
+this from the payload. This is doable with all the data we've yet
+seen, but isn't fun going forwards.
 
 
 Ouptut message data formats
