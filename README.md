@@ -22,6 +22,9 @@ It follows a few main design goals:
 
 These are all explored at much greater length below.
 
+Note that we now also handle the proprietary AIS variant format used
+by the UK's Maritime and Coastguard Authority.
+
 
 Getting the software
 ====================
@@ -243,6 +246,15 @@ TODO discuss a bit more here.
 Input data
 ==========
 
+You need to specity the input format you're working with up front, as
+AISutil's programs discard any input data that doesn't parse
+correctly, giving you an empty output file when you choose the wrong
+one. Happily this is quite obvious, so you just try again with the
+other.
+
+NMEA AIS (the normal case)
+--------------------------
+
 It's very likely the unprocessed AIS data you have access to will look
 like either of these two lines:
 
@@ -270,6 +282,31 @@ the same file (e.g.  ships can have several pieces of kit dumping data
 onto the same bus).  If you get an empty messages output file it's
 likely you're providing data in a format the program doesn't
 understand.
+
+UK Maritime and Coastguard Authority AIS data
+---------------------------------------------
+
+The MCA uses and distributes a variant on the normal NMEA format, and
+we read it in AISutil in the same way - just select the "MCA/MMO"
+radio box in the GUI or use the `mcaais_to_ndjson` CLI program.
+
+Data in this format is generally composed of lines looking like either
+of the following:
+
+```
+2013-10-17 00:00:00,306033000,5,54SniJ02>6K10a<J2204l4p@622222222222221?:hD:46b`0>E3lSRCp88888888888880
+2016-04-29 00:00:00.000,235104485,H3P=`q@ETD<5@<PE80000000000
+```
+
+You can see there's a timestamp, a message type (from the payload), an
+MMSI (from the payload), and the payload. Multipart messages are
+pre-concatenated, so there's no merging to be done, and one input line
+corresponds to one output line, assuming no decode errors.
+
+If you're really interested, `source/aisutil/mcadata.d` contains a
+spec for the format we inferred from working with some data
+samples. Please do send us updates and improvements if you spot a
+mistake.
 
 
 Ouptut message data formats
@@ -547,9 +584,9 @@ per-thread actors and message passing in the included GUI program.
 There's quite a lot of flexability in how to write a file, so we use a
 traditional vtable interface there to make it easy to add more output
 types; we're expecting more and more to be wanted. See
-`source/aisutil/filewriting.d` if you're interested. We're also in the
-process of moving the file reading functionality onto a similar
-scheme, as there are other input data formats people want to handle.
+`source/aisutil/filewriting.d` if you're interested. Reading is very
+similar, exposing files as ranges of the `AnyAisMsgPossTS` sum type;
+here see `source/aisutil/filereading.d` for more details.
 
 We use the excellent **libais** for AIS wire format decoding. Since
 the library doesn't prioritise API and ABI compatibility at the C++
