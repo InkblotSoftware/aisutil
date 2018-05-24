@@ -298,10 +298,11 @@ of the following:
 2016-04-29 00:00:00.000,235104485,H3P=`q@ETD<5@<PE80000000000
 ```
 
-You can see there's a timestamp, a message type (from the payload), an
-MMSI (from the payload), and the payload. Multipart messages are
-pre-concatenated, so there's no merging to be done, and one input line
-corresponds to one output line, assuming no decode errors.
+You can see there's a timestamp, an optional message type (from the
+payload), an MMSI (from the payload), and the payload. Multipart
+messages are pre-concatenated, so there's no merging to be done, and
+one input line corresponds to one output message, assuming no decode
+errors.
 
 If you're really interested, `source/aisutil/mcadata.d` contains a
 spec for the format we inferred from working with some data
