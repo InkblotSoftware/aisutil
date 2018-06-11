@@ -54,8 +54,15 @@ def objsAreSame (obj1, obj2):
         val1 = obj1 [key]
         val2 = obj2 [key]
 
+        ## Null val
+        if val1 is None:
+            if val2 is None:
+                pass
+            else:
+                return False
+
         ## Int val
-        if type(val1) is int:
+        elif type(val1) is int:
             if type(val2) is bool:
                 if val1 == 0 and val2 == False:
                     pass

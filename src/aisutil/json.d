@@ -8,7 +8,7 @@
 
 module aisutil.json;
 import std.json, std.typecons, std.range, std.algorithm;
-import aisutil.ext.libaiswrap;
+import aisutil.ext.libaiswrap, aisutil.ais;
 
 // Turning AIS message structs into JSON objects,
 // ready for writing to disk.
@@ -18,6 +18,9 @@ import aisutil.ext.libaiswrap;
 //  Allowed json keys to write - the member vars of all the AIS msgs,
 //  plus "tagblock_timestamp"
 
+
+private immutable string[] ignoredFields = ["parse_error", "turn_valid"];
+
 private immutable string[] allJsonKeys = "tagblock_timestamp"
                                         ~
                                         (  [__traits(allMembers, C_AisMsg1n2n3)]
@@ -26,23 +29,56 @@ private immutable string[] allJsonKeys = "tagblock_timestamp"
                                          ~ [__traits(allMembers, C_AisMsg19)]
                                          ~ [__traits(allMembers, C_AisMsg24)]
                                          ~ [__traits(allMembers, C_AisMsg27)])
-                                            .dup.sort.uniq.array;
+                                            .filter !(c => !ignoredFields.canFind(c))
+                                            .array.sort.uniq.array;
 
 
 //  --------------------------------------------------------------------------
 //  Making JSON objects
 
+// Main set value path
+private void setJsonMember (ref JSONValue js, in string key, in int val) {
+    js[key] = JSONValue (val);
+}
+private void setJsonMember (ref JSONValue js, in string key, in double val) {
+    js[key] = JSONValue (val);
+}
+private void setJsonMember (ref JSONValue js, in string key, in string val) {
+    js[key] = JSONValue (val);
+}
+
+// Special case for c-style strings
 private void setJsonMember(ref JSONValue js, in string key, const(char)* val) {
     import std.string;
     js[key] = JSONValue(val.fromStringz);
 }
-private void setJsonMember(T)(ref JSONValue js, in string key, in T val) {
-    js[key] = JSONValue(val);
+
+// Set value for nullables (sets to null if isNull)
+private void setJsonMember (ref JSONValue js, in string key,
+                            in Nullable!int val) {
+    if (val.isNull) js[key] = null;
+    else            js[key] = JSONValue (val.get);
+}
+private void setJsonMember (ref JSONValue js, in string key,
+                            in Nullable!double val) {
+    if (val.isNull) js[key] = null;
+    else            js[key] = JSONValue (val.get);
+}
+private void setJsonMember (ref JSONValue js, in string key,
+                            in Nullable!string val) {
+    if (val.isNull) js[key] = null;
+    else            js[key] = JSONValue (val.get);
 }
 
+
+// -- Top level driver: make a json object from an AIS object
+
 JSONValue toJsonVal(T)(in T obj,
-                       Nullable!int tagblockTimestamp = Nullable!int.init) {
+                       Nullable!int tagblockTimestamp = Nullable!int.init)
+    if(isAisMsg!T)
+{
     JSONValue res;
+    auto fixer = aisValueFixer (obj);
 
     static foreach (key; allJsonKeys) {
         // tbts is special
@@ -53,16 +89,16 @@ JSONValue toJsonVal(T)(in T obj,
                 res[key] = tagblockTimestamp.get;
             }
         } else
-        static if (__traits(hasMember, obj, key)) {
+        static if (__traits (hasMember, obj, key)) {
             // Every other present field works in this way
 
             // Check if a has_xxx fun is present, and if so only fetch datum
             // if it returns true
-            static if (__traits(hasMember, obj, "has_" ~ key)) {
-                if (__traits(getMember, obj, "has_" ~ key))
-                    setJsonMember(res, key, __traits(getMember, obj, key));
+            static if (__traits (hasMember, obj, "has_" ~ key)) {
+                if (__traits (getMember, obj, "has_" ~ key))
+                    setJsonMember (res, key, __traits (getMember, fixer, key));
             } else {
-                setJsonMember(res, key, __traits(getMember, obj, key));
+                setJsonMember (res, key, __traits (getMember, fixer, key));
             }
         } else {
             // pass (if no such member)
@@ -71,6 +107,8 @@ JSONValue toJsonVal(T)(in T obj,
 
     return res;
 }
+
+// -- Tests
 
 unittest {
     import aisutil.dlibaiswrap;
@@ -84,6 +122,7 @@ unittest {
         import std.math;
         assert (js["lat"].floating.approxEqual(47.58283333333333));
         assert (js["lon"].floating.approxEqual(-122.34583333333333));
+        assert (js["turn"].floating.approxEqual(0));
         
         assert (! ("xxxxxx" in js));
         assert (! ("tagblock_timestamp" in js));
@@ -132,5 +171,14 @@ unittest {
         assert (js["to_starboard"].integer == 2);
         assert (js["shiptype"].integer == 57);
         assert (! ("shipname" in js));
+    }
+
+    // Msg3 with invalid turn
+    {
+        auto msg = AisMsg1n2n3("33J=hV0OhmNv;lbQ<CA`sW>T00rQ", 0);
+        auto js = toJsonVal (msg);
+
+        assert (js["mmsi"].integer == 228815000);
+        assert (js["turn"].isNull);
     }
 }

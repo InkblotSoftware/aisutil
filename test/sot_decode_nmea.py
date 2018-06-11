@@ -40,7 +40,6 @@ import ais
 ##  mmsi
 ##  month
 ##  msg22
-##  parse_error
 ##  partno
 ##  raim
 ##  repeat
@@ -73,7 +72,6 @@ def msgHasDesiredType (msg):
 
 def genMsgOutputDict (msg):
     res = {}
-    res["parse_error"] = 0
     if ("matches" in msg) and ("time" in msg["matches"][0]):
         res["tagblock_timestamp"] = msg["matches"][0]["time"]
     
@@ -86,13 +84,44 @@ def genMsgOutputDict (msg):
     def pushIfHas (srcKey, destKey):
         if has(srcKey): push (srcKey, destKey)
 
-    if has("rot_over_range"):
-        res["turn_valid"] = not msg["decoded"]["rot_over_range"]
+    if has ("rot"):
+        if msg["decoded"]["rot_over_range"] == True:
+            res["turn"] = None
+        else:
+            push ("rot", "turn")
+
+    if has("cog"):
+        if msg["decoded"]["cog"] == 360.0:
+            res["course"] = None
+        else:
+            push ("cog", "course")
+
+    if has ("sog"):
+        if msg["decoded"]["sog"] >= 102.2:
+            res["speed"] = None
+        else:
+            push ("sog", "speed")
+
+    if has ("x"):
+        if msg["decoded"]["x"] == 181.0:
+            res["lon"] = None
+        else:
+            push ("x", "lon")
+    if has ("y"):
+        if msg["decoded"]["y"] == 91.0:
+            res["lat"] = None
+        else:
+            push ("y", "lat")
+
+    if has ("true_heading"):
+        if msg["decoded"]["true_heading"] == 511:
+            res["heading"] = None
+        else:
+            push ("true_heading", "heading")
         
     pushIfHas ("position_accuracy", "accuracy")
     pushIfHas ("mode_flag", "assigned")
     pushIfHas ("callsign", "callsign")
-    pushIfHas ("cog", "course")
     pushIfHas ("commstate_flag", "cs")
     pushIfHas ("eta_day", "day")
     pushIfHas ("destination", "destination")
@@ -102,11 +131,8 @@ def genMsgOutputDict (msg):
     pushIfHas ("dte", "dte")
     pushIfHas ("fix_type", "epfd")
     pushIfHas ("gnss", "gnss")
-    pushIfHas ("true_heading", "heading")
     pushIfHas ("eta_hour", "hour")
     pushIfHas ("imo_num", "imo")
-    pushIfHas ("x", "lon")
-    pushIfHas ("y", "lat")
     pushIfHas ("eta_minute", "minute")
     pushIfHas ("mmsi", "mmsi")
     pushIfHas ("eta_month", "month")
@@ -117,13 +143,11 @@ def genMsgOutputDict (msg):
     pushIfHas ("timestamp", "second")
     pushIfHas ("name", "shipname")
     pushIfHas ("type_and_cargo", "shiptype")
-    pushIfHas ("sog", "speed")
     pushIfHas ("nav_status", "status")
     pushIfHas ("dim_a", "to_bow")
     pushIfHas ("dim_b", "to_stern")
     pushIfHas ("dim_c", "to_port")
     pushIfHas ("dim_d", "to_starboard")
-    pushIfHas ("rot", "turn")
     pushIfHas ("id", "type")
     pushIfHas ("vendor_id", "vendorid")
 
