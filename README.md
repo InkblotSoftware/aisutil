@@ -457,6 +457,90 @@ AIS set used in AIS:
 We're very keen to have feedback to improve both of these lists.
 
 
+Fields included in main output
+==============================
+
+Every decoded message contains some of the following fields. Where the
+message lacked a field it's omitted from the output. Note that some of
+these will not be generally reliable, so exercise caution.
+
+- `tagblock_timestamp` - Any timestamp present in the NMEA tagblock or
+  MCA data equivalent, in Unix Epoch time (seconds since 1st January
+  1970)
+- `accuracy` - Accuracy of the fix; flag, 1 is DGPS quality, 0 is
+  unaugmented GNSS
+- `assigned` - AIS assigned mode; flag, 0 is autonomous, 1 is assigned
+- `callsign` - Vessel callsign; string
+- `course` - Course over ground (not heading); floating point, degrees
+  from North measured clockwise. May be null in JSON output.
+- `cs` - For class B unit, does it have carrier sense; flag, 0 is no,
+  1 is yes
+- `day` - AIS broadcast day of month; integer. Strongly prefer
+  tagblock_timestamp
+- `destination` - User-set voyage destination; string
+- `display` - Does the AIS unit have a visual display; flag, 0 is no,
+  1 is yes. Probably not reliable
+- `draught` - Draught of vessel in metres; floating point. Reliable
+  on some vessels e.g. oil tankers
+- `dsc` - Is AIS unit attached to a VHF radio with DSC capability?
+  Flag, 0 is no, 1 is yes
+- `dte` - Is the data terminal ready? 0 is yes, 1 is no
+- `epfd` - EPFD fix type; integer flag, specifically: 0 Undefined
+  (default), 1 GPS, 2 GLONASS, 3 Combined GPS/GLONASS, 4 Loran-C,
+  5 Chayka, 6 Integrated navigation system, 7 Surveyed, 8 Galileo
+- `gnss` - GNSS position status; flag, 0 is current GNSS position,
+  1 is not GNSS position
+- `heading` - Similar to course but direction vessel is pointing.
+  May be null in JSON output
+- `hour` - AIS broadcast hour of day; integer. Strongly prefer
+  tagblock_timestamp
+- `imo` - IMO number of vessel; integer
+- `lat` - Degrees latitude of vessel; floating point, WGS84. May be
+  null in JSON output
+- `lon` - Degrees longitude of vesse; floating point, WGS84. May be
+  null in JSON output
+- `minute` - AIS broadcast minute of hour; integer. Strongly prefer
+  tagblock_timestamp
+- `mmsi` - MMSI (id) of vessel; integer. See above section
+- `month` - AIS broadcast month of year; integer. Strongly prefer
+  tagblock_timestamp
+- `msg22` - Can unit accept chanel assignment via message 22? Flag;
+  0 is no, 1 is yes
+- `partno` - For type 24 messages there are two versions or 'parts',
+  holding different fields. This is 0 for part A and 1 for part B
+- `raim` - Is Receiver Autonomous Integrity Monitoring being used
+  to check the performance of the EPFD? Flag; 0 is no, 1 is yes
+- `repeat` - Should this message be rebroadcast by recipients? Counts
+  up to 3 repeats. Litte used in practice
+- `second` - AIS broadcast second of minute; integer. Strongly prefer
+  tagblock_timestamp
+- `shipname` - User-set ship name; string
+- `shiptype` - Ship type as integer code. See above section
+- `speed` - Speed over ground in knots; floating point. May be null
+  in JSON output
+- `status` - Navigation status, integer flag. Frequently unreliable.
+  Meaning: 0 Under way using engine, 1 At anchor, 2 Not under command,
+  3 Restricted manoeuverability, 4 Constrained by her draught,
+  5 Moored, 6 Aground, 7 Engaged in Fishing, 8 Under way sailing,
+  9 Reserved for future amendment of Navigational Status for HSC,
+  10 Reserved for future amendment of Navigational Status for WIG,
+  11 Reserved for future use, 12 Reserved for future use, 13 Reserved
+  for future use, 14 AIS-SART is active, 15 Not defined (default)
+- `to_bow` - Distance in metres from fixed reference point on ship to
+  bow, in direction of heading; integer
+- `to_port` - Similar to port edge
+- `to_starboard` - Similar to starboard edge
+- `to_stern` - Similar to stern
+- `turn` - Rate of turn of vessel in degrees per minute, +ve is
+  right; floating point. May be null in JSON output
+- `type` - AIS message type; integer
+- `vendorid` - Incompatible binary formats are broadcast - either a
+  seven character string naming the AIS equipment vendor, or sometimes
+  the last four chars represent a pair of integers. We pessimistically
+  assume the string version, allowing you to see any latter four
+  scrambled characters by eye
+
+
 An example of this software in use
 ==================================
 
