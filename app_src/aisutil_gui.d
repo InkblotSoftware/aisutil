@@ -684,7 +684,8 @@ class InputFilesPanel : Panel {
             updateGui();
             return true;
         }
-        Widget[] allElems () {return [_filesListWidget, _addBut, _clearBut];}
+        Widget[] allElems () {return [_filesListWidget, _addBut, _clearBut,
+                                      _nmeaFormat, _mcaFormat];}
     }
 }
 
