@@ -345,6 +345,9 @@ class McaAisFileReader : AisFileReader {
                 return;
                 
             } catch (Exception e) {
+                // TODO find a way of not broadcasting this so loudly during
+                // the unittests (maybe a 'be quiet I know this will fail' flag
+                // or similar)
                 stderr.writeln ("== MCA data parse failed, CONTINUING. ",
                                 "Line was: ", line, "\n", e);
                 stderr.flush;
@@ -362,6 +365,7 @@ class McaAisFileReader : AisFileReader {
 private immutable mcaAisFileData = "
 2013-10-17 00:00:00,306033000,5,54SniJ02>6K10a<J2204l4p@622222222222221?:hD:46b`0>E3lSRCp88888888888880
 oooo
+\"2016-04-29 00:00:00.000,235104485,H3P=`q@ETD<5@<PE80000000000\"     \r
 2016-04-29 00:00:00.000,235104485,H3P=`q@ETD<5@<PE80000000000     \r
 2016-04-29 00:00:00.000,235104485,H3P=`q@ETD<5@<PE80000000000
 ";
@@ -391,11 +395,17 @@ unittest {
     assert (! reader.empty);
     assert (reader.front.msg.get!AisMsg24.shipname.fromStringz == "EYECATCHER");
     assert (reader.front.msg.get!AisMsg24.mmsi == 235104485);
-    
+
+    // And again
+    reader.popFront ();
+    assert (! reader.empty);
+    assert (reader.front.msg.get!AisMsg24.shipname.fromStringz == "EYECATCHER");
+    assert (reader.front.msg.get!AisMsg24.mmsi == 235104485);
+
     reader.popFront ();
     assert (reader.empty);
 
-    assert (reader.linesRead == 5);
+    assert (reader.linesRead == 6);
     assert (reader.bytesRead == mcaAisFileData.length);
-    assert (reader.aisMsgsRead == 3);
+    assert (reader.aisMsgsRead == 4);
 }

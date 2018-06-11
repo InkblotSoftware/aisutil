@@ -37,7 +37,9 @@ import aisutil.ais;
 //  You get four fields in the first format, and three in the latter.
 //  
 //  Note that we need to handle arbitrary numbers of trailing spaces on the
-//  lines, as well as sometimes-present windows line endings.
+//  lines, as well as sometimes-present windows line endings. Further, owing to
+//  handling tools some lines are surrounded by '"' double quotes, so these
+//  must be stripped prior to parsing.
 //
 //  Timestamp comes first, stored in "YYYY-mm-dd HH:MM:SS.XXX" format, where
 //  the '.XXX. fractional part may or may not exist.
@@ -86,8 +88,17 @@ struct McaDataLine {
 
     @disable this();
     this(T) (in T line) if(isSomeString!T) {
+        // Clean up any bom and line endings
         immutable string bom = [0xEF, 0xBB, 0xBF];
         auto stripLine = line .stripRight(" \r") .stripLeft(bom);
+        // Clean up any wrapping quotes
+        if (   stripLine.length >= 2
+            && stripLine [0] == '"'
+            && stripLine [$-1] == '"')
+        {
+            stripLine = stripLine [1 .. $-1];
+        }
+            
         auto fields = stripLine.split(",");
 
         if (fields.length == 3) {
@@ -208,6 +219,17 @@ unittest {
     // Three field line
     {
         immutable line = "2016-04-29 00:00:00.000,235104485,H3P=`q@ETD<5@<PE80000000000    \r";
+        auto par = McaDataLine (line);
+        assert (par.timestamp == 1461888000);
+        assert (par.mmsi == 235104485);
+        assert (par.msgType.isNull);
+        assert (par.payload == "H3P=`q@ETD<5@<PE80000000000");
+        assert (par.guessedFillbits == 2);
+    }
+
+    // Quote-surrounded line
+    {
+        immutable line = "\"2016-04-29 00:00:00.000,235104485,H3P=`q@ETD<5@<PE80000000000\"    \r";
         auto par = McaDataLine (line);
         assert (par.timestamp == 1461888000);
         assert (par.mmsi == 235104485);
