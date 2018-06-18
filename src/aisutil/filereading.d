@@ -153,8 +153,17 @@ class AisNmeaFileReader : AisFileReader {
                 // nop - silently discard
                 
             } catch (Exception e) {
-                stderr.writeln ("== AIS parse failed on NMEA line: ",
-                                _nmeaLines.front, " - ", e);
+                // Silently ignore errors
+                //
+                // TODO write a Logger class that selectively logs things like
+                // this based on context, os, debug flags, etc.
+                // NB windows seems to crash in gui programs when writing to
+                // stderr, I'm still debugging why. The call to trustedFWrite
+                // in std.stdio.d returns the wrong value (line 2890 at time
+                // of writing).
+                
+                // stderr.writeln ("== AIS parse failed on NMEA line: ",
+                //                 _nmeaLines.front, " - ", e);
             }
         }
 
@@ -345,12 +354,18 @@ class McaAisFileReader : AisFileReader {
                 return;
                 
             } catch (Exception e) {
-                // TODO find a way of not broadcasting this so loudly during
-                // the unittests (maybe a 'be quiet I know this will fail' flag
-                // or similar)
-                stderr.writeln ("== MCA data parse failed, CONTINUING. ",
-                                "Line was: ", line, "\n", e);
-                stderr.flush;
+                // Silently ignore errors
+                //
+                // TODO write a Logger class that selectively logs things like
+                // this based on context, os, debug flags, etc.
+                // NB windows seems to crash in gui programs when writing to
+                // stderr, I'm still debugging why. The call to trustedFWrite
+                // in std.stdio.d returns the wrong value (line 2890 at time
+                // of writing).
+                
+                // stderr.writeln ("== MCA data parse failed, CONTINUING. ",
+                //                 "Line was: ", line, "\n", e);
+                // stderr.flush;
             }
         }
         _curMsg.nullify ();  // no more data to read, so give up, we're empty
