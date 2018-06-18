@@ -1,8 +1,9 @@
 Easy to use raw AIS processing utilities
 
 This project was created with the kind support of 
-[Defra](https://www.gov.uk/government/organisations/department-for-environment-food-rural-affairs)
-and [Cefas](https://www.cefas.co.uk/).
+[Defra](https://www.gov.uk/government/organisations/department-for-environment-food-rural-affairs),
+[Cefas](https://www.cefas.co.uk/) and
+[Marine Scotland](http://www.gov.scot/Topics/marine)
 
 
 Objectives
