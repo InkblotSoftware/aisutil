@@ -7,8 +7,8 @@
 //  ==========================================================================
 
 module aisutil.json;
-import std.json, std.typecons, std.range, std.algorithm;
-import aisutil.ext.libaiswrap, aisutil.ais;
+import std.json, std.typecons, std.range, std.algorithm, std.variant;
+import aisutil.ext.libaiswrap, aisutil.ais, aisutil.dlibaiswrap;
 
 // Turning AIS message structs into JSON objects,
 // ready for writing to disk.
@@ -73,6 +73,20 @@ private void setJsonMember (ref JSONValue js, in string key,
 
 // -- Top level driver: make a json object from an AIS object
 
+// AnyAisMsg wrapper
+JSONValue toJsonVal (in ref AnyAisMsg msg,
+                     Nullable!int tagblockTimestamp = Nullable!int.init) {
+    return msg.visit!(
+        (in ref AisMsg1n2n3 m) => toJsonVal (m, tagblockTimestamp),
+        (in ref AisMsg5     m) => toJsonVal (m, tagblockTimestamp),
+        (in ref AisMsg18    m) => toJsonVal (m, tagblockTimestamp),
+        (in ref AisMsg19    m) => toJsonVal (m, tagblockTimestamp),
+        (in ref AisMsg24    m) => toJsonVal (m, tagblockTimestamp),
+        (in ref AisMsg27    m) => toJsonVal (m, tagblockTimestamp)
+    );
+}
+
+// Message type taking template version
 JSONValue toJsonVal(T)(in T obj,
                        Nullable!int tagblockTimestamp = Nullable!int.init)
     if(isAisMsg!T)

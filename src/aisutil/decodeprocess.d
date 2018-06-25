@@ -36,34 +36,6 @@ struct DecodeProcessCurRunningStats {
 
 
 //  --------------------------------------------------------------------------
-//  Variant-handling helper for MsgFileWriter classes
-//    Helper for executeDecodeProcess()
-
-void writeAnyAisMsg (ref Unique!MsgFileWriter msgWriter,
-                     AnyAisMsg msg, PossTimestamp possTS, MmsiStats stats) {
-    msg.visit!(
-        (AisMsg1n2n3 m) => msgWriter.writeMsg (m, possTS, stats),
-        (AisMsg5     m) => msgWriter.writeMsg (m, possTS, stats),
-        (AisMsg18    m) => msgWriter.writeMsg (m, possTS, stats),
-        (AisMsg19    m) => msgWriter.writeMsg (m, possTS, stats),
-        (AisMsg24    m) => msgWriter.writeMsg (m, possTS, stats),
-        (AisMsg27    m) => msgWriter.writeMsg (m, possTS, stats)
-    )();
-}
-void writeAnyAisMsg_noStats (ref Unique!MsgFileWriter msgWriter,
-                             AnyAisMsg msg, PossTimestamp possTS) {
-    msg.visit!(
-        (AisMsg1n2n3 m) => msgWriter.writeMsg_noStats (m, possTS),
-        (AisMsg5     m) => msgWriter.writeMsg_noStats (m, possTS),
-        (AisMsg18    m) => msgWriter.writeMsg_noStats (m, possTS),
-        (AisMsg19    m) => msgWriter.writeMsg_noStats (m, possTS),
-        (AisMsg24    m) => msgWriter.writeMsg_noStats (m, possTS),
-        (AisMsg27    m) => msgWriter.writeMsg_noStats (m, possTS)
-    )();
-}
-
-
-//  --------------------------------------------------------------------------
 //  Queryable set of per-MMSI filters
 //    Helper for executeDecodeProcess()
 //  
@@ -381,9 +353,9 @@ DecProcFinStats executeDecodeProcess (DecodeProcessDef procDef,
         geoHeatmap.markLatLon_ifPositional (msg.msg);
         statsBuilder.notifyParsedMsgWritten ();
         if (stats.isNull)
-            msgWriter.writeAnyAisMsg_noStats (msg.msg, msg.possTS);
+            msgWriter.writeMsg_noStats (msg.msg, msg.possTS);
         else
-            msgWriter.writeAnyAisMsg (msg.msg, msg.possTS, stats);
+            msgWriter.writeMsg (msg.msg, msg.possTS, stats);
     };
     auto emitMessage_noStats = delegate void (AnyAisMsgPossTS msg) {
         emitMessage_h (msg, Nullable!MmsiStats.init);

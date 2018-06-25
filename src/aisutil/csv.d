@@ -7,8 +7,8 @@
 //  ==========================================================================
 
 module aisutil.csv;
-import std.string, std.range, std.algorithm, std.conv, std.typecons;
-import aisutil.ext.libaiswrap, aisutil.ais;
+import std.string, std.range, std.algorithm, std.conv, std.typecons, std.variant;
+import aisutil.ext.libaiswrap, aisutil.ais, aisutil.dlibaiswrap;
 
 
 // Functions to generate CSV strings, particularly for AIS messages
@@ -99,6 +99,24 @@ string csvHeader() {
 //  Making CSV rows from AIS messages
 //    Where a field doesn't exist in the passed AisMsg struct we write an
 //    empty cell, or similarly if the relevant value is deemed null by the fixer
+
+// -- AnyAisMsg wrapper
+
+string toCsvRow (in AnyAisMsg msg) {
+    return toCsvRow (msg, Nullable!int.init);
+}
+string toCsvRow (in AnyAisMsg msg, Nullable!int tagblockTimestamp) {
+    return msg.visit!(
+        (in ref AisMsg1n2n3 m) => toCsvRow (m, tagblockTimestamp),
+        (in ref AisMsg5     m) => toCsvRow (m, tagblockTimestamp),
+        (in ref AisMsg18    m) => toCsvRow (m, tagblockTimestamp),
+        (in ref AisMsg19    m) => toCsvRow (m, tagblockTimestamp),
+        (in ref AisMsg24    m) => toCsvRow (m, tagblockTimestamp),
+        (in ref AisMsg27    m) => toCsvRow (m, tagblockTimestamp)
+    );
+}
+
+// -- Distinct message type handlers
 
 string toCsvRow(T)(in T obj) if(isAisMsg!T) {
     return toCsvRow!T(obj, Nullable!int.init);
