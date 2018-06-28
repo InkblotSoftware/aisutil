@@ -122,20 +122,25 @@ value already set, and in practice a number of vessels fail to change
 this to their own value, at least for a time. Some equipment like
 modern fishing gear also broadcasts on AIS, and generally uses a
 standard MMSI for all units. Due to these factors - accidental and
-malicious - 'MMSI sharing' is a somewhat common phenomenon, where two
+malicious - 'MMSI sharing' is a rare but present phenomenon, where two
 senders create a non-sensical set of information when filtered to that
 MMSI. For tracks this manifests as a vessel appearing to 'teleport'
 back and forth between two completely unrelated locations every few
 seconds.
 
-The standard practice for disambiguating two tracks broadcasting as
-one is to define a concept of 'irrational movement' which no physical
-vehicle could undertake, typically just an extremely high speed. The
-track can be walked by increasing timestamp and split into two tracks
-whenever such an irrational movement is encountered; often messages
-are annotated with an integer ID specifying the separated track within
-that MMSI track. This software will gain this functionality by default
-in the very near future.
+This software implements a fairly simple splitter, based on the fact
+that vessels cannot reasonably be expected to travel at more that 100
+metres per second between transmissions (this also includes
+helicopters). As new messages are provided for an MMSI they're
+allocated to an already existing 'mmsi_geotrack' if possible,
+according to this measure, or used as the basis for a new one if not.
+(Where several geotracks are valid, the closest last transmission
+wins).  Each geotrack has an integer ID, extending the MMSI. This
+stragegy works quite well, as long as the data is provided in strictly
+increasing time order; if your data is not then you'll want to take
+the values here with a large pinch of salt. See
+`src/aisutil/geotracks.d` for more detailed documentation of the
+process.
 
 Ship types
 ----------
@@ -503,6 +508,7 @@ these will not be generally reliable, so exercise caution.
 - `minute` - AIS broadcast minute of hour; integer. Strongly prefer
   tagblock_timestamp
 - `mmsi` - MMSI (id) of vessel; integer. See above section
+- `mmsi_geotrack` - MMSI-split geotrack id; integer. See above section
 - `month` - AIS broadcast month of year; integer. Strongly prefer
   tagblock_timestamp
 - `msg22` - Can unit accept chanel assignment via message 22? Flag;

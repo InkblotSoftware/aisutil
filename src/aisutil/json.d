@@ -8,7 +8,8 @@
 
 module aisutil.json;
 import std.json, std.typecons, std.range, std.algorithm, std.variant;
-import aisutil.ext.libaiswrap, aisutil.ais, aisutil.dlibaiswrap;
+import aisutil.ext.libaiswrap, aisutil.ais, aisutil.dlibaiswrap,
+       aisutil.geotracks;
 
 // Turning AIS message structs into JSON objects,
 // ready for writing to disk.
@@ -16,12 +17,13 @@ import aisutil.ext.libaiswrap, aisutil.ais, aisutil.dlibaiswrap;
 
 //  --------------------------------------------------------------------------
 //  Allowed json keys to write - the member vars of all the AIS msgs,
-//  plus "tagblock_timestamp"
+//  plus "tagblock_timestamp" and "mmsi_geotrack"
 
 
 private immutable string[] ignoredFields = ["parse_error", "turn_valid"];
 
-private immutable string[] allJsonKeys = "tagblock_timestamp"
+private immutable string[] allJsonKeys = ["tagblock_timestamp"] ~
+                                         "mmsi_geotrack"
                                         ~
                                         (  [__traits(allMembers, C_AisMsg1n2n3)]
                                          ~ [__traits(allMembers, C_AisMsg5)]
@@ -75,20 +77,22 @@ private void setJsonMember (ref JSONValue js, in string key,
 
 // AnyAisMsg wrapper
 JSONValue toJsonVal (in ref AnyAisMsg msg,
-                     Nullable!int tagblockTimestamp = Nullable!int.init) {
+                     Nullable!int tagblockTimestamp,
+                     Nullable!GeoTrackID gtid) {
     return msg.visit!(
-        (in ref AisMsg1n2n3 m) => toJsonVal (m, tagblockTimestamp),
-        (in ref AisMsg5     m) => toJsonVal (m, tagblockTimestamp),
-        (in ref AisMsg18    m) => toJsonVal (m, tagblockTimestamp),
-        (in ref AisMsg19    m) => toJsonVal (m, tagblockTimestamp),
-        (in ref AisMsg24    m) => toJsonVal (m, tagblockTimestamp),
-        (in ref AisMsg27    m) => toJsonVal (m, tagblockTimestamp)
+        (in ref AisMsg1n2n3 m) => toJsonVal (m, tagblockTimestamp, gtid),
+        (in ref AisMsg5     m) => toJsonVal (m, tagblockTimestamp, gtid),
+        (in ref AisMsg18    m) => toJsonVal (m, tagblockTimestamp, gtid),
+        (in ref AisMsg19    m) => toJsonVal (m, tagblockTimestamp, gtid),
+        (in ref AisMsg24    m) => toJsonVal (m, tagblockTimestamp, gtid),
+        (in ref AisMsg27    m) => toJsonVal (m, tagblockTimestamp, gtid)
     );
 }
 
 // Message type taking template version
 JSONValue toJsonVal(T)(in T obj,
-                       Nullable!int tagblockTimestamp = Nullable!int.init)
+                       Nullable!int tagblockTimestamp,
+                       Nullable!GeoTrackID gtid)
     if(isAisMsg!T)
 {
     JSONValue res;
@@ -103,9 +107,16 @@ JSONValue toJsonVal(T)(in T obj,
                 res[key] = tagblockTimestamp.get;
             }
         } else
+        // as is geotrack id
+        static if (key == "mmsi_geotrack") {
+            if (gtid.isNull) {
+                // pass
+            } else {
+                res[key] = gtid.value;
+            }
+        } else
+        // Every other present field works in this way
         static if (__traits (hasMember, obj, key)) {
-            // Every other present field works in this way
-
             // Check if a has_xxx fun is present, and if so only fetch datum
             // if it returns true
             static if (__traits (hasMember, obj, "has_" ~ key)) {
@@ -121,6 +132,12 @@ JSONValue toJsonVal(T)(in T obj,
 
     return res;
 }
+
+// Simplified version for use in unit tests
+private JSONValue toJsonVal(T)(in T obj) if (isAisMsg!T) {
+    return toJsonVal (obj, Nullable!int.init, Nullable!GeoTrackID.init);
+}
+
 
 // -- Tests
 
@@ -142,14 +159,16 @@ unittest {
         assert (! ("tagblock_timestamp" in js));
     }
 
-    // Same but with tbts
+    // Same but with tbts and gtid
     {
         auto msg = AisMsg1n2n3("177KQJ5000G?tO`K>RA1wUbN0TKH", 0);
         Nullable!int ts = 12345;
-        auto js = toJsonVal(msg, ts);
+        Nullable!GeoTrackID gtid = GeoTrackID (999);
+        auto js = toJsonVal (msg, ts, gtid);
 
         assert (js["mmsi"].integer == 477553000);
         assert (js["tagblock_timestamp"].integer == 12345);
+        assert (js["mmsi_geotrack"].integer == 999);
     }
 
     // Msg 5
@@ -166,12 +185,14 @@ unittest {
     // Msg24a
     {
         auto msg = AisMsg24("HE2K5MA`58hTpL0000000000000", 2);
-        auto js = toJsonVal (msg, Nullable!int(121212));
+        Nullable!GeoTrackID gtid = GeoTrackID (999);
+        auto js = toJsonVal (msg, Nullable!int(121212), gtid);
 
         assert (js["shipname"].str == "ZARLING");
         assert (js["mmsi"].integer == 338085237);
         assert (js["partno"].integer == 0);
         assert (js["tagblock_timestamp"].integer == 121212);
+        assert (js["mmsi_geotrack"].integer == 999);
         assert ("mmsi" in js);
         assert (! ("callsign" in js));
     }

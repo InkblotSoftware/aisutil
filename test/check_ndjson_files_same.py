@@ -13,6 +13,8 @@
 ### out any differences found between the files.
 ###
 ### Performs a number of type coercions e.g. 1/0 <-> True/False.
+### 
+### Skips "mmsi_geotrack" key, as the python decoder doesn't create it.
 ###
 ### BEWARE strips ' ' and '@' off the right edge of all strings (as this is
 ### what libaiswrap does).
@@ -47,6 +49,9 @@ def objsAreSame (obj1, obj2):
 
     ### Main key/val checking
     for key in obj1.keys():
+        ## Ignore mmsi_geotrack key
+        if key == u"mmsi_geotrack":
+            continue
         
         if not key in obj2:
             return False
@@ -131,10 +136,9 @@ def objsAreSame (obj1, obj2):
         else:
             assert False, "Type not known: %s (%s)" % (val1, type(val1))
 
-    ### There should be no keys just in obj2
+    ### There should be no keys just in obj2 (ignoring mmsi_geotrack)
     for key in obj2.keys():
-        # print "--->", key
-        if key not in obj1:
+        if key not in obj1 and key != u"mmsi_geotrack":
             return False
 
     return True
@@ -192,6 +196,8 @@ def unittests():
     assSame ("""{"asdf": 1.0}""", """{"asdf":1.0000000001}""")
     assSame ("""{"accuracy":0,"course":360,"heading":220,"lat":51.947416666666669,"lon":1.29151666666666665,"mmsi":235101651,"parse_error":0,"raim":0,"repeat":0,"second":14,"speed":102.300003051757812,"status":0,"turn":0,"turn_valid":true,"type":1}""",
              """{"status": 0, "repeat": 0, "turn": 0.0, "speed": 102.30000305175781, "mmsi": 235101651, "lon": 1.2915166666666666, "raim": false, "course": 360.0, "second": 14, "type": 1, "lat": 51.94741666666667, "parse_error": 0, "turn_valid": true, "heading": 220, "accuracy": 0}""")
+    assSame ("{}", """{"mmsi_geotrack":2}""")
+    assSame ("""{"mmsi_geotrack":2}""", "{}")
 
     
 ##  --------------------------------------------------------------------------

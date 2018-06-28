@@ -37,6 +37,18 @@ int mmsi (in ref AnyAisMsg msg) {
                       (in ref AisMsg27    m) => m.mmsi)();
 }
 
+// Which members have a position?
+bool isPositional (AnyAisMsg msg) {
+    return msg.visit!(
+        (AisMsg1n2n3 m) => true,
+        (AisMsg5     m) => false,
+        (AisMsg18    m) => true,
+        (AisMsg19    m) => true,
+        (AisMsg24    m) => false,
+        (AisMsg27    m) => true
+    );
+}
+
 
 //  --------------------------------------------------------------------------
 //  Version holding a possible-timestamp too

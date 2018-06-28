@@ -13,7 +13,7 @@ import aisutil.filewriting, aisutil.mmsistats, aisutil.ais,
        aisutil.decodeprocessdef, aisutil.geo, aisutil.decprocfinstats,
        aisutil.geoheatmap, aisutil.dlibaiswrap, aisutil.simpleshiptypes,
        aisutil.shiplengths, aisutil.daisnmea, aisutil.backlog, 
-       aisutil.aisnmeagrouping, aisutil.filereading;
+       aisutil.aisnmeagrouping, aisutil.filereading, aisutil.geotracks;
 
 
 //  ==========================================================================
@@ -295,6 +295,7 @@ DecProcFinStats executeDecodeProcess (DecodeProcessDef procDef,
     auto geoHeatmap   = new GeoHeatmap ();
     auto mmsiStats    = MmsiStatsBucket ();
     auto backlog      = MmsiBacklog ();
+    auto geoTracker   = GeoTrackFinder ();
     immutable totalBytesInInput = procDef.totalBytesInInput();
     
     // Choose the variant-specific message file writer
@@ -350,12 +351,17 @@ DecProcFinStats executeDecodeProcess (DecodeProcessDef procDef,
     // All msg->file writing goes through these
     auto emitMessage_h = delegate void (AnyAisMsgPossTS msg,
                                       Nullable!MmsiStats stats) {
+        Nullable!GeoTrackID possGtid;
+        if (msg.msg.isPositional)
+            possGtid = geoTracker.put (msg.msg, msg.possTS);
+        
         geoHeatmap.markLatLon_ifPositional (msg.msg);
         statsBuilder.notifyParsedMsgWritten ();
+        
         if (stats.isNull)
-            msgWriter.writeMsg_noStats (msg.msg, msg.possTS);
+            msgWriter.writeMsg_noStats (msg.msg, msg.possTS, possGtid);
         else
-            msgWriter.writeMsg (msg.msg, msg.possTS, stats);
+            msgWriter.writeMsg (msg.msg, msg.possTS, possGtid, stats);
     };
     auto emitMessage_noStats = delegate void (AnyAisMsgPossTS msg) {
         emitMessage_h (msg, Nullable!MmsiStats.init);

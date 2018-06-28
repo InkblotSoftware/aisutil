@@ -8,7 +8,8 @@
 
 module aisutil.csv;
 import std.string, std.range, std.algorithm, std.conv, std.typecons, std.variant;
-import aisutil.ext.libaiswrap, aisutil.ais, aisutil.dlibaiswrap;
+import aisutil.ext.libaiswrap, aisutil.ais, aisutil.dlibaiswrap,
+       aisutil.geotracks;
 
 
 // Functions to generate CSV strings, particularly for AIS messages
@@ -75,7 +76,8 @@ unittest {
 
 private immutable string[] ignoredFields = ["parse_error", "turn_valid"];
 
-private immutable string[] aisCsvCols = "tagblock_timestamp"
+private immutable string[] aisCsvCols = ["tagblock_timestamp"] ~
+                                        "mmsi_geotrack"
                                         ~
                                         (  [__traits(allMembers, C_AisMsg1n2n3)]
                                          ~ [__traits(allMembers, C_AisMsg5)]
@@ -102,26 +104,29 @@ string csvHeader() {
 
 // -- AnyAisMsg wrapper
 
-string toCsvRow (in AnyAisMsg msg) {
-    return toCsvRow (msg, Nullable!int.init);
-}
-string toCsvRow (in AnyAisMsg msg, Nullable!int tagblockTimestamp) {
+string toCsvRow (in AnyAisMsg msg, Nullable!int tagblockTimestamp,
+                 Nullable!GeoTrackID gtid) {
     return msg.visit!(
-        (in ref AisMsg1n2n3 m) => toCsvRow (m, tagblockTimestamp),
-        (in ref AisMsg5     m) => toCsvRow (m, tagblockTimestamp),
-        (in ref AisMsg18    m) => toCsvRow (m, tagblockTimestamp),
-        (in ref AisMsg19    m) => toCsvRow (m, tagblockTimestamp),
-        (in ref AisMsg24    m) => toCsvRow (m, tagblockTimestamp),
-        (in ref AisMsg27    m) => toCsvRow (m, tagblockTimestamp)
+        (in ref AisMsg1n2n3 m) => toCsvRow (m, tagblockTimestamp, gtid),
+        (in ref AisMsg5     m) => toCsvRow (m, tagblockTimestamp, gtid),
+        (in ref AisMsg18    m) => toCsvRow (m, tagblockTimestamp, gtid),
+        (in ref AisMsg19    m) => toCsvRow (m, tagblockTimestamp, gtid),
+        (in ref AisMsg24    m) => toCsvRow (m, tagblockTimestamp, gtid),
+        (in ref AisMsg27    m) => toCsvRow (m, tagblockTimestamp, gtid)
     );
 }
 
 // -- Distinct message type handlers
 
-string toCsvRow(T)(in T obj) if(isAisMsg!T) {
-    return toCsvRow!T(obj, Nullable!int.init);
+// This is just used in unit tests
+private string toCsvRow(T)(in T obj) if(isAisMsg!T) {
+    return toCsvRow!T(obj, Nullable!int.init, Nullable!GeoTrackID.init);
 }
-string toCsvRow(T)(in T obj, Nullable!int tagblockTimestamp) if(isAisMsg!T) {
+
+string toCsvRow(T)(in T obj, Nullable!int tagblockTimestamp,
+                             Nullable!GeoTrackID gtid)
+    if(isAisMsg!T)
+{
     import std.conv;
     string res;
     bool doneFirst = false;
@@ -140,9 +145,16 @@ string toCsvRow(T)(in T obj, Nullable!int tagblockTimestamp) if(isAisMsg!T) {
                 res ~= tagblockTimestamp.get.csvValStr();
             }
         } else
+        // as is geotrack
+        static if (cn == "mmsi_geotrack") {
+            if (gtid.isNull) {
+                // pass
+            } else {
+                res ~= gtid.get().value.csvValStr();
+            }
+        } else
+        // Every other present field is handled the same way
         static if (__traits (hasMember, obj, cn)) {
-            // Every other present field is handled the same way
-            
             // check for a has_xxx member, and if present only fetch if it rets true
             static if (__traits (hasMember, obj, "has_" ~ cn)) {
                 if (__traits (getMember, obj, "has_" ~ cn))
@@ -220,4 +232,24 @@ unittest {
         assert (colVal("mmsi") == "477553000");
         assert (colVal("turn") == "0");
     }
+
+    // Check timestamp and gtid
+    {
+        auto msg = AisMsg1n2n3("177KQJ5000G?tO`K>RA1wUbN0TKH", 0);
+        
+        auto csvRow = toCsvRow (msg, Nullable!int(123),
+                                Nullable!GeoTrackID(GeoTrackID(999)));
+        
+        string[] cells = csvRow.split(",");
+        assert (cells.length == aisCsvCols.length);
+
+        // Get the member of 'cells' matching col header named 'colName'
+        auto colVal = delegate string(in string colName) {
+            auto idx = aisCsvCols.countUntil (colName);
+            return cells [idx]; };
+
+        assert (colVal("tagblock_timestamp") == "123");
+        assert (colVal("mmsi_geotrack") == "999");
+    }
+
 }
