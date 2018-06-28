@@ -238,8 +238,8 @@ monitor them and require transmission. Timestamps come from the
 receiving equipment and are as accurate as you expect your provider to
 be (satellite AIS is fine).  Destination string is famously
 suspect. Speed over ground and course over ground prove quite reliable
-in practice, draught seemingly also (the latter is particularly useful
-for gauging tanker fill volume).
+in practice, draught seemingly also for certain vessel classes (the
+latter is particularly useful for gauging tanker fill volume).
 
 TODO discuss a bit more here.
 
