@@ -65,6 +65,44 @@ struct AnyAisMsgPossTS {
 }
 
 
+//  ----------------------------------------------------------------------
+//  Utils for investigating whether an AnyAisMsg has a speed val, and getting it
+
+bool hasSpeed (AnyAisMsg msg) {
+    return msg.visit!(
+        (AisMsg1n2n3 m) => true,
+        (AisMsg5     m) => false,
+        (AisMsg18    m) => true,
+        (AisMsg19    m) => true,
+        (AisMsg24    m) => false,
+        (AisMsg27    m) => true,
+    );
+}
+
+double speed (AnyAisMsg msg) {
+    import std.exception, core.exception;
+    assert (msg.hasSpeed);
+    return msg.visit!(
+        (AisMsg1n2n3 m) => m.speed,
+        (AisMsg5     m) {
+            enforce!AssertError (false, "AisMsg5 does not have speed field");
+            return -1; },  // placate compiler
+        (AisMsg18    m) => m.speed,
+        (AisMsg19    m) => m.speed,
+        (AisMsg24    m) {
+            enforce!AssertError (false, "AisMsg24 does not have speed field");
+            return -1; },  // placate compiler
+        (AisMsg27    m) => m.speed,
+    );
+}
+
+unittest {
+    auto msg = AnyAisMsg (AisMsg1n2n3 ("177KQJ5000G?tO`K>RA1wUbN0TKH", 0));
+    assert (msg.hasSpeed ());
+    assert (msg.speed == 0.0);
+}
+
+
 //  --------------------------------------------------------------------------
 //  Parser for AnyAisMsg (if you want it)
 

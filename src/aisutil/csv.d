@@ -9,7 +9,7 @@
 module aisutil.csv;
 import std.string, std.range, std.algorithm, std.conv, std.typecons, std.variant;
 import aisutil.ext.libaiswrap, aisutil.ais, aisutil.dlibaiswrap,
-       aisutil.geotracks;
+       aisutil.geotracks, aisutil.transits, aisutil.filewriting;
 
 
 // Functions to generate CSV strings, particularly for AIS messages
@@ -76,8 +76,9 @@ unittest {
 
 private immutable string[] ignoredFields = ["parse_error", "turn_valid"];
 
-private immutable string[] aisCsvCols = ["tagblock_timestamp"] ~
-                                        "mmsi_geotrack"
+private immutable string[] aisCsvCols = ["tagblock_timestamp",
+                                         "mmsi_geotrack",
+                                         "mmsi_transit"]
                                         ~
                                         (  [__traits(allMembers, C_AisMsg1n2n3)]
                                          ~ [__traits(allMembers, C_AisMsg5)]
@@ -105,14 +106,14 @@ string csvHeader() {
 // -- AnyAisMsg wrapper
 
 string toCsvRow (in AnyAisMsg msg, Nullable!int tagblockTimestamp,
-                 Nullable!GeoTrackID gtid) {
+                 SubtrackData stData) {
     return msg.visit!(
-        (in ref AisMsg1n2n3 m) => toCsvRow (m, tagblockTimestamp, gtid),
-        (in ref AisMsg5     m) => toCsvRow (m, tagblockTimestamp, gtid),
-        (in ref AisMsg18    m) => toCsvRow (m, tagblockTimestamp, gtid),
-        (in ref AisMsg19    m) => toCsvRow (m, tagblockTimestamp, gtid),
-        (in ref AisMsg24    m) => toCsvRow (m, tagblockTimestamp, gtid),
-        (in ref AisMsg27    m) => toCsvRow (m, tagblockTimestamp, gtid)
+        (in ref AisMsg1n2n3 m) => toCsvRow (m, tagblockTimestamp, stData),
+        (in ref AisMsg5     m) => toCsvRow (m, tagblockTimestamp, stData),
+        (in ref AisMsg18    m) => toCsvRow (m, tagblockTimestamp, stData),
+        (in ref AisMsg19    m) => toCsvRow (m, tagblockTimestamp, stData),
+        (in ref AisMsg24    m) => toCsvRow (m, tagblockTimestamp, stData),
+        (in ref AisMsg27    m) => toCsvRow (m, tagblockTimestamp, stData)
     );
 }
 
@@ -120,11 +121,11 @@ string toCsvRow (in AnyAisMsg msg, Nullable!int tagblockTimestamp,
 
 // This is just used in unit tests
 private string toCsvRow(T)(in T obj) if(isAisMsg!T) {
-    return toCsvRow!T(obj, Nullable!int.init, Nullable!GeoTrackID.init);
+    return toCsvRow!T(obj, Nullable!int.init, SubtrackData ());
 }
 
 string toCsvRow(T)(in T obj, Nullable!int tagblockTimestamp,
-                             Nullable!GeoTrackID gtid)
+                             SubtrackData stData)
     if(isAisMsg!T)
 {
     import std.conv;
@@ -147,10 +148,18 @@ string toCsvRow(T)(in T obj, Nullable!int tagblockTimestamp,
         } else
         // as is geotrack
         static if (cn == "mmsi_geotrack") {
-            if (gtid.isNull) {
+            if (stData.geoTrackID.isNull) {
                 // pass
             } else {
-                res ~= gtid.get().value.csvValStr();
+                res ~= stData.geoTrackID.value.csvValStr();
+            }
+        } else
+        // as is transit
+        static if (cn == "mmsi_transit") {
+            if (stData.transitID.isNull) {
+                // pass
+            } else {
+                res ~= stData.transitID.value.csvValStr();
             }
         } else
         // Every other present field is handled the same way
@@ -183,7 +192,6 @@ unittest {
 
         // Since we know the fields in type 24 B...
         auto nonEmptyCells = cells.filter !(c => c.length > 0) .array;
-        //assert (nonEmptyCells.length == 6);
         assert (nonEmptyCells.length == 5);
 
         // Get the member of 'cells' matching col header named 'colName'
@@ -233,12 +241,13 @@ unittest {
         assert (colVal("turn") == "0");
     }
 
-    // Check timestamp and gtid
+    // Check timestamp, gtid and transitid
     {
         auto msg = AisMsg1n2n3("177KQJ5000G?tO`K>RA1wUbN0TKH", 0);
         
         auto csvRow = toCsvRow (msg, Nullable!int(123),
-                                Nullable!GeoTrackID(GeoTrackID(999)));
+                                SubtrackData (nullable (GeoTrackID (999)),
+                                              nullable (TransitID  (555))));
         
         string[] cells = csvRow.split(",");
         assert (cells.length == aisCsvCols.length);
@@ -250,6 +259,7 @@ unittest {
 
         assert (colVal("tagblock_timestamp") == "123");
         assert (colVal("mmsi_geotrack") == "999");
+        assert (colVal("mmsi_transit") == "555");
     }
 
 }

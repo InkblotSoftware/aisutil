@@ -13,7 +13,8 @@ import aisutil.filewriting, aisutil.mmsistats, aisutil.ais,
        aisutil.decodeprocessdef, aisutil.geo, aisutil.decprocfinstats,
        aisutil.geoheatmap, aisutil.dlibaiswrap, aisutil.simpleshiptypes,
        aisutil.shiplengths, aisutil.daisnmea, aisutil.backlog, 
-       aisutil.aisnmeagrouping, aisutil.filereading, aisutil.geotracks;
+       aisutil.aisnmeagrouping, aisutil.filereading, aisutil.geotracks,
+       aisutil.transits;
 
 
 //  ==========================================================================
@@ -296,6 +297,7 @@ DecProcFinStats executeDecodeProcess (DecodeProcessDef procDef,
     auto mmsiStats    = MmsiStatsBucket ();
     auto backlog      = MmsiBacklog ();
     auto geoTracker   = GeoTrackFinder ();
+    auto transFinder  = TransitFinder ();
     immutable totalBytesInInput = procDef.totalBytesInInput();
     
     // Choose the variant-specific message file writer
@@ -351,17 +353,24 @@ DecProcFinStats executeDecodeProcess (DecodeProcessDef procDef,
     // All msg->file writing goes through these
     auto emitMessage_h = delegate void (AnyAisMsgPossTS msg,
                                       Nullable!MmsiStats stats) {
-        Nullable!GeoTrackID possGtid;
-        if (msg.msg.isPositional)
-            possGtid = geoTracker.put (msg.msg, msg.possTS);
+        SubtrackData stData;
+        if (! msg.possTS.isNull()) {
+            if (msg.msg.isPositional)
+                stData.geoTrackID = geoTracker.put (msg.msg, msg.possTS);
+            if (msg.msg.hasSpeed) {
+                auto res = transFinder.put (msg.msg, msg.possTS);
+                if (res.isInTransit)
+                    stData.transitID = res.transitID;
+            }
+        }
         
         geoHeatmap.markLatLon_ifPositional (msg.msg);
         statsBuilder.notifyParsedMsgWritten ();
         
         if (stats.isNull)
-            msgWriter.writeMsg_noStats (msg.msg, msg.possTS, possGtid);
+            msgWriter.writeMsg_noStats (msg.msg, msg.possTS, stData);
         else
-            msgWriter.writeMsg (msg.msg, msg.possTS, possGtid, stats);
+            msgWriter.writeMsg (msg.msg, msg.possTS, stData, stats);
     };
     auto emitMessage_noStats = delegate void (AnyAisMsgPossTS msg) {
         emitMessage_h (msg, Nullable!MmsiStats.init);

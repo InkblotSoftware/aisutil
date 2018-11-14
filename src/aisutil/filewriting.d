@@ -9,7 +9,7 @@
 module aisutil.filewriting;
 import aisutil.mmsistats, aisutil.csv, aisutil.json, aisutil.geo,
        aisutil.dlibaiswrap, aisutil.simpleshiptypes, aisutil.shiplengths,
-       aisutil.ais, aisutil.geotracks;
+       aisutil.ais, aisutil.geotracks, aisutil.transits;
 import std.stdio, std.range, std.algorithm, std.typecons;
 
 
@@ -44,6 +44,16 @@ enum MessageOutputFormat {
 }
 
 
+//  ----------------------------------------------------------------------
+//  Each message may or may not be part of an MMSI geotrack and/or a transit,
+//  which together make up it's 'subtrack membership'
+
+struct SubtrackData {
+    Nullable!GeoTrackID geoTrackID;
+    Nullable!TransitID  transitID;
+}
+
+
 //  --------------------------------------------------------------------------
 //  Clients pass in a lot of possibly-present timestamps and GeoTrackIDs
 //  (and often deal with them themselves)
@@ -56,9 +66,9 @@ alias PossGeoTrackID = Nullable!GeoTrackID;
 //  Trivial json making
 
 private string msgJsonStr (in ref AnyAisMsg msg, PossTimestamp possTS,
-                           PossGeoTrackID possGtid) {
+                           SubtrackData stData) {
     import std.json;
-    auto jsval = toJsonVal (msg, possTS, possGtid);
+    auto jsval = toJsonVal (msg, possTS, stData);
     return jsval.toJSON();
 }
 
@@ -72,11 +82,11 @@ interface MsgFileWriter {
 
     // Write to file - normal control path
     void writeMsg (in ref AnyAisMsg msg, PossTimestamp possTS,
-                   PossGeoTrackID possGtid, in ref MmsiStats mmstats);
+                   SubtrackData stData, in ref MmsiStats mmstats);
     
     // When we really don't have useful mmsi stats, write the message somehow
     void writeMsg_noStats (in ref AnyAisMsg msg, PossTimestamp possTS,
-                           PossGeoTrackID possGtid);
+                           SubtrackData stData);
 
     // Close all open files. MUST be called in class dtr
     void close();
@@ -113,20 +123,20 @@ class SimpleMsgFileWriter : MsgFileWriter {
     override bool canWriteWithStats (in ref MmsiStats mmstats) {return true;}
 
     override void writeMsg (in ref AnyAisMsg msg, PossTimestamp possTS,
-                            PossGeoTrackID possGtid,
+                            SubtrackData stData,
                             in ref MmsiStats stats) {
         assert (canWriteWithStats (stats));
-        writeMsg_noStats (msg, possTS, possGtid);
+        writeMsg_noStats (msg, possTS, stData);
     }
 
     override void writeMsg_noStats (in ref AnyAisMsg msg, PossTimestamp possTS,
-                                    PossGeoTrackID possGtid) {
+                                    SubtrackData stData) {
         final switch (_format) {
             case MessageOutputFormat.CSV:
-                _file.writeln (toCsvRow (msg, possTS, possGtid));
+                _file.writeln (toCsvRow (msg, possTS, stData));
                 break;
             case MessageOutputFormat.NDJSON:
-                auto jsval = aisutil.json.toJsonVal (msg, possTS, possGtid);
+                auto jsval = aisutil.json.toJsonVal (msg, possTS, stData);
                 import std.json;
                 _file.writeln (jsval.toJSON());
                 break;
@@ -184,28 +194,28 @@ class MsgFileWriter_SplittingSimpleShiptypes : MsgFileWriter {
     }
 
     override void writeMsg (in ref AnyAisMsg msg, PossTimestamp possTS,
-                            PossGeoTrackID possGtid,
+                            SubtrackData stData,
                             in ref MmsiStats stats) {
         assert (canWriteWithStats (stats));
         auto sst = simplifyShiptype (stats.shiptype);
         auto file = _files [sst];
-        doWriteMsg (file, msg, possTS, possGtid);
+        doWriteMsg (file, msg, possTS, stData);
     }
 
     override void writeMsg_noStats (in ref AnyAisMsg msg, PossTimestamp possTS,
-                                    PossGeoTrackID possGtid) {
+                                    SubtrackData stData) {
         auto file = _files [SimpleShiptype.NotBroadcast];
-        doWriteMsg (file, msg, possTS, possGtid);
+        doWriteMsg (file, msg, possTS, stData);
     }
 
     private void doWriteMsg (File file, in ref AnyAisMsg msg,
-                             PossTimestamp possTS, PossGeoTrackID possGtid) {
+                             PossTimestamp possTS, SubtrackData stData) {
         final switch (_format) {
             case MessageOutputFormat.CSV:
-                file.writeln (toCsvRow (msg, possTS, possGtid));
+                file.writeln (toCsvRow (msg, possTS, stData));
                 break;
             case MessageOutputFormat.NDJSON:
-                auto jsval = aisutil.json.toJsonVal (msg, possTS, possGtid);
+                auto jsval = aisutil.json.toJsonVal (msg, possTS, stData);
                 import std.json;
                 file.writeln (jsval.toJSON());
                 break;
@@ -252,27 +262,28 @@ class MsgFileWriter_SplitShipLenCat : MsgFileWriter {
         return stats.hasShiplen; }
 
     override void writeMsg (in ref AnyAisMsg msg, PossTimestamp possTS,
-                            PossGeoTrackID possGtid, in ref MmsiStats stats) {
+                            SubtrackData stData, in ref MmsiStats stats) {
         assert (canWriteWithStats (stats));
         auto lenCat = stats.shiplen.shipLenCatForLen ();
         auto file = _files [lenCat];
-        doWriteMsg (file, msg, possTS, possGtid);
+        doWriteMsg (file, msg, possTS, stData);
     }
 
     override void writeMsg_noStats (in ref AnyAisMsg msg, PossTimestamp possTS,
-                                    PossGeoTrackID possGtid) {
+                                    SubtrackData stData) {
+                                    //PossGeoTrackID possGtid) {
         auto file = _files [ShipLenCat.NotBroadcast];
-        doWriteMsg (file, msg, possTS, possGtid);
+        doWriteMsg (file, msg, possTS, stData);
     }
 
     void doWriteMsg (File file, in ref AnyAisMsg msg,
-                     PossTimestamp possTS, PossGeoTrackID possGtid) {
+                     PossTimestamp possTS, SubtrackData stData) {
         final switch (_format) {
             case MessageOutputFormat.CSV:
-                file.writeln (toCsvRow (msg, possTS, possGtid));
+                file.writeln (toCsvRow (msg, possTS, stData));
                 break;
             case MessageOutputFormat.NDJSON:
-                file.writeln (msgJsonStr (msg, possTS, possGtid));
+                file.writeln (msgJsonStr (msg, possTS, stData));
                 break;
         }
     }
@@ -353,30 +364,30 @@ class MsgFileWriter_SplitTimestampDay : MsgFileWriter {
     override bool canWriteWithStats (in ref MmsiStats stats) const {return true;}
 
     override void writeMsg (in ref AnyAisMsg msg, PossTimestamp possTS,
-                            PossGeoTrackID possGtid, in ref MmsiStats stats) {
+                            SubtrackData stData, in ref MmsiStats stats) {
         assert (canWriteWithStats (stats));
-        writeMsg_noStats (msg, possTS, possGtid);
+        writeMsg_noStats (msg, possTS, stData);
     }
 
     override void writeMsg_noStats (in ref AnyAisMsg msg, PossTimestamp possTS,
-                                    PossGeoTrackID possGtid) {
+                                    SubtrackData stData) {
         if (possTS.isNull)
             openFileWithDay (Nullable!DayID.init);
         else
             openFileWithDay (Nullable!DayID (DayID.forTimestamp (possTS)));
 
-        writeMsg_intoCurFile (msg, possTS, possGtid);
+        writeMsg_intoCurFile (msg, possTS, stData);
     }
 
     private void writeMsg_intoCurFile (in ref AnyAisMsg msg,
                                        PossTimestamp possTS,
-                                       PossGeoTrackID possGtid) {
+                                       SubtrackData stData) {
         final switch (_format) with (MessageOutputFormat) {
             case CSV:
-                _curFile.writeln (toCsvRow (msg, possTS, possGtid));
+                _curFile.writeln (toCsvRow (msg, possTS, stData));
                 break;
             case NDJSON:
-                _curFile.writeln (msgJsonStr (msg, possTS, possGtid));
+                _curFile.writeln (msgJsonStr (msg, possTS, stData));
                 break;
         }
     }
