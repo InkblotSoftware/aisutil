@@ -42,8 +42,18 @@
             "targetType": "executable",
             "targetPath": "bin/",
             "mainSourceFile": "app_src/aisutil_gui.d",
+            
+            "COMMENT: dependencies": [
+                "This very specific set of versions weaves around some very ",
+                "annoying derelict dependency incompatibilities. These are ",
+                "likely to work themselves out as people trip over them, so ",
+                "when this happens please change all this to just: ",
+                "dlangui: ~>(the latest)"
+            ],
 	    "dependencies": {
-		"dlangui": "~>0.9.173"
+                "dlangui": "==0.9.180",
+                "derelict-ft": "==1.1.2",
+                "derelict-util": "==2.0.6"
 	    }
         },
         {
@@ -60,5 +70,8 @@
             "targetPath": "bin/",
             "mainSourceFile": "app_src/mcaais_to_ndjson.d"
         }
-    ]
+    ],
+
+    "IGNOREME_dlangui": "~>0.9.173"
+
 }
